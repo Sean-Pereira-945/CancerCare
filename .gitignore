@@ -1,0 +1,34 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# Environment variables - NEVER commit
+.env
+.env.local
+.env.production
+
+# ML models and data (too large for Git)
+backend/models/*.pkl
+backend/data/vector_store/
+backend/data/knowledge_base/*.pdf
+
+# Node.js
+node_modules/
+frontend/dist/
+frontend/.next/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# Temp files
+_doc_content.txt
+.dist/
