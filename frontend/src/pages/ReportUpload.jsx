@@ -1,39 +1,39 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { reportsAPI } from '../lib/api'
 import MedicalDisclaimer from '../components/MedicalDisclaimer'
+import { useAuth } from '../hooks/useAuth'
 import toast from 'react-hot-toast'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 
 export default function ReportUpload() {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
   const [file, setFile] = useState(null)
-  const [uploading, setUploading] = useState(false)
-  const [result, setResult] = useState(null)
-  const [reports, setReports] = useState([])
-  const [loadingReports, setLoadingReports] = useState(true)
 
-  useEffect(() => {
-    reportsAPI.getReports()
-      .then(res => setReports(res.data.reports || []))
-      .catch(() => {})
-      .finally(() => setLoadingReports(false))
-  }, [])
+  const { data: reports = [], isLoading: loading } = useQuery({
+    queryKey: ['reports'],
+    queryFn: () => reportsAPI.getReports().then(res => res.data.reports || []),
+  })
+
+  const uploadMutation = useMutation({
+    mutationFn: (file) => reportsAPI.uploadReport(file),
+    onSuccess: () => {
+      toast.success('Report uploaded and indexed!')
+      setFile(null)
+      queryClient.invalidateQueries({ queryKey: ['reports'] })
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.detail || 'Upload failed')
+    },
+  })
 
   const handleUpload = async (e) => {
     e.preventDefault()
     if (!file) return toast.error('Select a PDF file first')
-    setUploading(true)
-    try {
-      const { data } = await reportsAPI.uploadReport(file)
-      setResult(data)
-      toast.success('Report uploaded and analyzed!')
-      // Refresh reports list
-      const updated = await reportsAPI.getReports()
-      setReports(updated.data.reports || [])
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Upload failed')
-    } finally {
-      setUploading(false)
-    }
+    uploadMutation.mutate(file)
   }
+
+  const uploading = uploadMutation.isPending
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -74,12 +74,12 @@ export default function ReportUpload() {
       </form>
 
       {/* Extracted Fields */}
-      {result && (
+      {uploadMutation.data && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 animate-fade-in">
           <h2 className="text-lg font-semibold text-gray-700 mb-4">Extracted Information</h2>
-          {result.extracted && Object.keys(result.extracted).length > 0 ? (
+          {uploadMutation.data.extracted && Object.keys(uploadMutation.data.extracted).length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {Object.entries(result.extracted).map(([key, value]) => (
+              {Object.entries(uploadMutation.data.extracted).map(([key, value]) => (
                 <div key={key} className="bg-gray-50 rounded-xl p-3">
                   <span className="text-xs text-gray-400 font-medium capitalize">{key.replace('_', ' ')}</span>
                   <p className="text-sm text-gray-700 font-medium mt-0.5">{value}</p>
@@ -98,7 +98,7 @@ export default function ReportUpload() {
       {/* Past Reports */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 animate-slide-up" style={{ animationDelay: '200ms' }}>
         <h2 className="text-lg font-semibold text-gray-700 mb-4">Your Reports</h2>
-        {loadingReports ? (
+        {loading ? (
           <p className="text-sm text-gray-400">Loading...</p>
         ) : reports.length === 0 ? (
           <div className="text-center py-8">

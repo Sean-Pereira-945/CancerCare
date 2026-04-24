@@ -4,26 +4,30 @@ import { useAuth } from '../hooks/useAuth'
 import SymptomChart from '../components/SymptomChart'
 import MedicalDisclaimer from '../components/MedicalDisclaimer'
 import { Link } from 'react-router-dom'
+import {
+  ChatBubbleLeftRightIcon,
+  HeartIcon,
+  SparklesIcon,
+  DocumentTextIcon,
+} from '@heroicons/react/24/outline'
+import { useQuery } from '@tanstack/react-query'
 
 export default function Dashboard() {
   const { user } = useAuth()
-  const [data, setData] = useState([])
   const [days, setDays] = useState(14)
-  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    setLoading(true)
-    symptomsAPI.getTrends(days)
-      .then(res => setData(res.data.trends))
-      .catch(() => setData([]))
-      .finally(() => setLoading(false))
-  }, [days])
+  const { data: trendsData, isLoading: loading } = useQuery({
+    queryKey: ['symptoms', 'trends', days],
+    queryFn: () => symptomsAPI.getTrends(days).then(res => res.data.trends),
+  })
+
+  const data = trendsData || []
 
   const quickActions = [
-    { path: '/chat', icon: '💬', label: 'AI Chat', desc: 'Ask health questions', color: 'from-teal-500 to-teal-600' },
-    { path: '/symptoms', icon: '🩺', label: 'Log Symptoms', desc: 'Track how you feel', color: 'from-blue-500 to-blue-600' },
-    { path: '/diet', icon: '🥗', label: 'Diet Plan', desc: 'Get meal suggestions', color: 'from-emerald-500 to-emerald-600' },
-    { path: '/reports', icon: '📋', label: 'Upload Report', desc: 'Analyze your labs', color: 'from-purple-500 to-purple-600' },
+    { path: '/chat', icon: ChatBubbleLeftRightIcon, label: 'AI Chat', desc: 'Ask care-related questions', color: 'bg-teal-50 text-teal-700 border-teal-100' },
+    { path: '/symptoms', icon: HeartIcon, label: 'Log Symptoms', desc: 'Track daily health changes', color: 'bg-blue-50 text-blue-700 border-blue-100' },
+    { path: '/diet', icon: SparklesIcon, label: 'Diet Plan', desc: 'Generate personalized guidance', color: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
+    { path: '/reports', icon: DocumentTextIcon, label: 'Upload Report', desc: 'Summarize clinical documents', color: 'bg-violet-50 text-violet-700 border-violet-100' },
   ]
 
   // Calculate summary stats from trend data
@@ -36,7 +40,7 @@ export default function Dashboard() {
       {/* Greeting */}
       <div className="animate-slide-up">
         <h1 className="text-3xl font-bold text-gray-800">
-          Welcome back, <span className="gradient-text">{user?.name?.split(' ')[0] || 'there'}</span> 👋
+          Welcome back, <span className="text-teal-700">{user?.name?.split(' ')[0] || 'there'}</span>
         </h1>
         <p className="text-gray-400 text-sm mt-1">Here's an overview of your health journey</p>
       </div>
@@ -47,10 +51,10 @@ export default function Dashboard() {
           <Link
             key={action.path}
             to={action.path}
-            className="group bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
+            className="group surface-card surface-card-hover p-5"
           >
-            <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${action.color} flex items-center justify-center text-lg shadow-md mb-3 group-hover:scale-110 transition-transform duration-300`}>
-              {action.icon}
+            <div className={`w-11 h-11 rounded-xl border ${action.color} flex items-center justify-center mb-3 transition-transform duration-300`}>
+              <action.icon className="h-5 w-5" />
             </div>
             <h3 className="text-sm font-semibold text-gray-700">{action.label}</h3>
             <p className="text-xs text-gray-400 mt-0.5">{action.desc}</p>
@@ -60,21 +64,21 @@ export default function Dashboard() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 animate-slide-up" style={{ animationDelay: '200ms' }}>
-        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+        <div className="surface-card p-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center text-lg">😊</div>
             <span className="text-xs text-gray-400 font-medium">Avg. Mood ({days}d)</span>
           </div>
           <p className="text-2xl font-bold text-gray-800">{avgMood}<span className="text-sm text-gray-400 font-normal">/10</span></p>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+        <div className="surface-card p-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-lg">⚡</div>
             <span className="text-xs text-gray-400 font-medium">Avg. Pain ({days}d)</span>
           </div>
           <p className="text-2xl font-bold text-gray-800">{avgPain}<span className="text-sm text-gray-400 font-normal">/10</span></p>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+        <div className="surface-card p-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center text-lg">📝</div>
             <span className="text-xs text-gray-400 font-medium">Logs Recorded</span>

@@ -1,73 +1,70 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
 from app.auth.router import get_current_user
-from app.database import get_supabase
+from app.database import get_db
+from app.models.db import Medication
+from sqlalchemy.orm import Session
+from sqlalchemy import and_
 
 router = APIRouter()
 
-
 class MedicationCreate(BaseModel):
     name: str
-    dosage: str = ""
-    frequency: str = ""
+    dosage: str
+    frequency: str
     times: List[str] = []
-    start_date: Optional[str] = None
-    notes: Optional[str] = ""
-
+    notes: Optional[str] = None
 
 class MedicationUpdate(BaseModel):
     active: bool
 
-
 @router.post("/add")
-async def add_medication(med: MedicationCreate, current_user: dict = Depends(get_current_user)):
-    """Add a new medication to the patient's medication list."""
-    try:
-        sb = get_supabase()
-        result = sb.table("medications").insert({
-            "user_id": current_user["sub"],
-            **med.dict()
-        }).execute()
-        return {"status": "Medication added", "medication": result.data[0] if result.data else {}}
-    except Exception as e:
-        return {"status": "error", "detail": str(e)}
-
+async def add_medication(data: MedicationCreate, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Add a new medication to the patient's list."""
+    new_med = Medication(
+        user_id=current_user["sub"],
+        name=data.name,
+        dosage=data.dosage,
+        frequency=data.frequency,
+        times=data.times,
+        notes=data.notes,
+        active=True
+    )
+    db.add(new_med)
+    db.commit()
+    db.refresh(new_med)
+    return {"status": "success", "id": new_med.id}
 
 @router.get("/list")
-async def list_medications(current_user: dict = Depends(get_current_user)):
-    """Get all medications for the current user."""
-    try:
-        sb = get_supabase()
-        result = sb.table("medications").select("*").eq("user_id", current_user["sub"]).execute()
-        return {"medications": result.data}
-    except Exception:
-        return {"medications": []}
-
+async def get_medications(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get all active medications for the current user."""
+    meds = db.query(Medication).filter(Medication.user_id == current_user["sub"]).all()
+    return {"medications": meds}
 
 @router.put("/{medication_id}")
-async def update_medication(
+async def update_medication_status(
     medication_id: str,
     update: MedicationUpdate,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """Update medication status (active/inactive)."""
-    try:
-        sb = get_supabase()
-        result = sb.table("medications").update(
-            {"active": update.active}
-        ).eq("id", medication_id).eq("user_id", current_user["sub"]).execute()
-        return {"status": "Updated", "medication": result.data[0] if result.data else {}}
-    except Exception as e:
-        return {"status": "error", "detail": str(e)}
+    med = db.query(Medication).filter(and_(Medication.id == medication_id, Medication.user_id == current_user["sub"])).first()
+    if not med:
+        raise HTTPException(status_code=404, detail="Medication not found")
+    
+    med.active = update.active
+    db.commit()
+    return {"status": "Updated", "medication": med}
 
-
-@router.delete("/{medication_id}")
-async def delete_medication(medication_id: str, current_user: dict = Depends(get_current_user)):
-    """Delete a medication from the patient's list."""
-    try:
-        sb = get_supabase()
-        sb.table("medications").delete().eq("id", medication_id).eq("user_id", current_user["sub"]).execute()
-        return {"status": "Medication deleted"}
-    except Exception as e:
-        return {"status": "error", "detail": str(e)}
+@router.delete("/{med_id}")
+async def delete_medication(med_id: str, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Delete a medication."""
+    med = db.query(Medication).filter(and_(Medication.id == med_id, Medication.user_id == current_user["sub"])).first()
+    if not med:
+        raise HTTPException(status_code=404, detail="Medication not found")
+    
+    db.delete(med)
+    db.commit()
+    return {"status": "deleted"}

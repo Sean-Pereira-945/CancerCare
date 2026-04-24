@@ -1,12 +1,14 @@
-import httpx
-import google.generativeai as genai
 from app.config import get_settings
+from groq import Groq
+import json
+import re
 
 settings = get_settings()
 
-# Configure Gemini
-if settings.gemini_api_key:
-    genai.configure(api_key=settings.gemini_api_key)
+# Configure Groq
+groq_client = None
+if settings.groq_api_key:
+    groq_client = Groq(api_key=settings.groq_api_key.strip())
 
 # Cancer type to dietary needs mapping (based on clinical oncology guidelines)
 DIETARY_GUIDELINES = {
@@ -33,20 +35,11 @@ DIETARY_GUIDELINES = {
 }
 
 
-async def fetch_usda_foods(query: str) -> list:
-    """Fetch nutritional data from USDA FoodData Central (free, no key needed)."""
-    async with httpx.AsyncClient() as client:
-        r = await client.get(
-            "https://api.nal.usda.gov/fdc/v1/foods/search",
-            params={"query": query, "pageSize": 5, "dataType": "SR Legacy,Foundation Food"}
-        )
-        if r.status_code == 200:
-            return r.json().get("foods", [])[:3]
-    return []
-
-
 async def generate_diet_plan(user_profile: dict) -> dict:
-    """Generate a personalized 7-day meal plan using Gemini 1.5 Flash."""
+    """Generate a personalized 7-day meal plan using Groq (Llama 3.1 70B)."""
+    if not groq_client:
+        return {"error": "Groq API key not configured. Please add GROQ_API_KEY to .env"}
+
     cancer_type = user_profile.get("cancer_type", "default").lower()
     guidelines = DIETARY_GUIDELINES.get(cancer_type, DIETARY_GUIDELINES["default"])
 
@@ -68,16 +61,19 @@ Format as JSON with this structure:
 Include only valid JSON, no explanation."""
 
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        response = model.generate_content(prompt)
-        import json, re
-        text = response.text
+        response = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=2048,
+            temperature=0.3,
+        )
+        text = response.choices[0].message.content
         # Extract JSON from response
         json_match = re.search(r'\{[\s\S]+\}', text)
         if json_match:
             plan = json.loads(json_match.group())
         else:
-            plan = {}
+            plan = {"error": "Invalid response format from AI"}
     except Exception as e:
         plan = {"error": f"Could not generate plan: {str(e)}"}
 

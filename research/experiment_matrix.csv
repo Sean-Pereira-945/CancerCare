@@ -1,0 +1,7 @@
+variant_id,variant_name,global_retrieval,patient_retrieval,reranker,uncertainty_gating,faithfulness,hallucination_rate,safety_violation_rate,citation_correctness,clinician_preference,notes
+A0,Plain LLM,false,false,false,false,,,,,,
+A1,Generic RAG,true,false,false,false,,,,,,
+A2,Personalized RAG,true,true,false,false,,,,,,
+A3,Personalized RAG + Reranker,true,true,true,false,,,,,,
+A4,Personalized RAG + Gating,true,true,false,true,,,,,,
+A5,Full System,true,true,true,true,,,,,,

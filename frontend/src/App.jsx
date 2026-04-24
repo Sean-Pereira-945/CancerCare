@@ -1,7 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider, useAuth } from './hooks/useAuth'
+import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Navbar from './components/Navbar'
+import Home from './pages/Home'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Chatbot from './pages/Chatbot'
@@ -10,6 +14,7 @@ import DietPlan from './pages/DietPlan'
 import ReportUpload from './pages/ReportUpload'
 import Medications from './pages/Medications'
 import ClinicalTrials from './pages/ClinicalTrials'
+import References from './pages/References'
 import Caregiver from './pages/Caregiver'
 
 function ProtectedRoute({ children }) {
@@ -40,6 +45,7 @@ function AppLayout() {
           <Route path="/reports" element={<ProtectedRoute><ReportUpload /></ProtectedRoute>} />
           <Route path="/medications" element={<ProtectedRoute><Medications /></ProtectedRoute>} />
           <Route path="/trials" element={<ProtectedRoute><ClinicalTrials /></ProtectedRoute>} />
+          <Route path="/references" element={<ProtectedRoute><References /></ProtectedRoute>} />
           <Route path="/caregiver" element={<ProtectedRoute><Caregiver /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/dashboard" />} />
         </Routes>
@@ -48,29 +54,59 @@ function AppLayout() {
   )
 }
 
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+      refetchOnWindowFocus: false,
+    },
+  },
+})
+
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            duration: 3000,
-            style: {
-              background: '#fff',
-              color: '#374151',
-              borderRadius: '12px',
-              fontSize: '13px',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-              border: '1px solid #f3f4f6',
-            },
-          }}
-        />
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/*" element={<AppLayout />} />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </AuthProvider>
+    </QueryClientProvider>
+  )
+}
+
+function AppRoutes() {
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      navigate('/login')
+    }
+    window.addEventListener('auth:unauthorized', handleUnauthorized)
+    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized)
+  }, [navigate])
+
+  return (
+    <>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 3000,
+          style: {
+            background: '#fff',
+            color: '#374151',
+            borderRadius: '12px',
+            fontSize: '13px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+            border: '1px solid #f3f4f6',
+          },
+        }}
+      />
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/*" element={<AppLayout />} />
+      </Routes>
+    </>
   )
 }

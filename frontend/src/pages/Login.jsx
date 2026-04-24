@@ -37,27 +37,26 @@ export default function Login() {
   return (
     <div className="min-h-screen flex">
       {/* Left Panel — Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-teal-600 via-teal-700 to-teal-900 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-teal-700 via-teal-800 to-slate-900 relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.1),transparent_50%)]" />
         <div className="relative z-10 flex flex-col justify-center px-16">
-          <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center mb-8 shadow-xl">
-            <span className="text-3xl">🎗️</span>
-          </div>
+          <div className="text-white/90 text-sm font-semibold tracking-wide mb-8">CancerCare</div>
           <h1 className="text-4xl font-bold text-white mb-4 leading-tight">
-            Your AI-Powered<br />Health Companion
+            Clinical support for
+            <br />patients and caregivers
           </h1>
           <p className="text-teal-100 text-lg leading-relaxed max-w-md">
-            CancerCare AI helps you manage your health journey with personalized insights, diet plans, symptom tracking, and compassionate support.
+            Track symptoms, review reports, and prepare more informed conversations with your oncology team.
           </p>
           <div className="mt-12 space-y-4">
             {[
-              { icon: '💬', text: 'AI Chatbot trained on medical knowledge' },
-              { icon: '📋', text: 'Upload & analyze medical reports' },
-              { icon: '🥗', text: 'Personalized diet recommendations' },
-              { icon: '📊', text: 'Track symptoms & visualize trends' },
+              { icon: '1', text: 'Grounded AI guidance with safety disclaimers' },
+              { icon: '2', text: 'Secure report upload and structured summaries' },
+              { icon: '3', text: 'Daily symptom and treatment-side-effect tracking' },
+              { icon: '4', text: 'Caregiver linking and shared visibility' },
             ].map((feature, i) => (
               <div key={i} className="flex items-center gap-3 text-teal-100">
-                <span className="text-lg">{feature.icon}</span>
+                <span className="text-sm w-6 h-6 rounded-full bg-white/15 flex items-center justify-center">{feature.icon}</span>
                 <span className="text-sm">{feature.text}</span>
               </div>
             ))}
@@ -70,13 +69,10 @@ export default function Login() {
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
           <div className="lg:hidden text-center mb-8">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-teal-500/20">
-              <span className="text-2xl">🎗️</span>
-            </div>
-            <h1 className="text-2xl font-bold gradient-text">CancerCare AI</h1>
+            <h1 className="text-2xl font-bold brand-text">CancerCare</h1>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-xl shadow-gray-200/50 p-8 border border-gray-100">
+          <div className="surface-card p-8">
             <h2 className="text-2xl font-bold text-gray-800 mb-1">
               {isRegister ? 'Create Account' : 'Welcome Back'}
             </h2>
@@ -158,7 +154,7 @@ export default function Login() {
 
               <button
                 type="submit" disabled={loading}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-teal-600 to-teal-500 text-white text-sm font-semibold hover:from-teal-700 hover:to-teal-600 transition-all duration-200 shadow-lg shadow-teal-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-3 btn-primary font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? '...' : isRegister ? 'Create Account' : 'Sign In'}
               </button>

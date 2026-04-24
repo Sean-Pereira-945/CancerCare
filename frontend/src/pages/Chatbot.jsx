@@ -102,7 +102,7 @@ export default function Chatbot() {
           <button
             onClick={handleSend}
             disabled={loading}
-            className="px-5 py-2.5 bg-gradient-to-r from-teal-600 to-teal-500 text-white rounded-xl text-sm font-medium hover:from-teal-700 hover:to-teal-600 transition-all shadow-md shadow-teal-500/20 disabled:opacity-50"
+            className="px-5 py-2.5 btn-primary text-sm font-medium disabled:opacity-50"
           >
             Send
           </button>

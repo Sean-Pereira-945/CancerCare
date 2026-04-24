@@ -1,6 +1,11 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 from typing import Optional
+from pathlib import Path
+
+
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
@@ -10,8 +15,8 @@ class Settings(BaseSettings):
     huggingface_api_key: str = ""
 
     # Databases
-    supabase_url: str = ""
-    supabase_key: str = ""
+    neon_database_url: str = ""
+    neon_postgres_url: str = ""
     mongodb_uri: str = ""
     upstash_redis_url: str = ""
 
@@ -29,8 +34,9 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:5173"
 
     class Config:
-        env_file = ".env"
+        env_file = (PROJECT_ROOT / ".env", BACKEND_DIR / ".env")
         env_file_encoding = "utf-8"
+        extra = "ignore"
 
 
 @lru_cache()

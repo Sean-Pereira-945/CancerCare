@@ -55,7 +55,7 @@ export default function SymptomTracker() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-6 animate-slide-up" style={{ animationDelay: '100ms' }}>
+      <form onSubmit={handleSubmit} className="surface-card p-6 space-y-6 animate-slide-up" style={{ animationDelay: '100ms' }}>
         {/* Date */}
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1.5">Date</label>
@@ -120,7 +120,7 @@ export default function SymptomTracker() {
 
         <button
           type="submit" disabled={loading}
-          className="w-full py-3 rounded-xl bg-gradient-to-r from-teal-600 to-teal-500 text-white text-sm font-semibold hover:from-teal-700 hover:to-teal-600 transition-all shadow-lg shadow-teal-500/20 disabled:opacity-50"
+          className="w-full py-3 btn-primary text-sm font-semibold disabled:opacity-50"
         >
           {loading ? 'Saving...' : 'Log Symptoms'}
         </button>

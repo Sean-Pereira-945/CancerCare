@@ -4,10 +4,10 @@ from functools import lru_cache
 
 @lru_cache(maxsize=1)
 def load_ner_pipeline():
-    """Load SciBERT NER pipeline. Loaded once and cached in memory."""
+    """Load biomedical NER pipeline. Loaded once and cached in memory."""
     return pipeline(
         "ner",
-        model="allenai/scibert_scivocab_uncased",
+        model="d4data/biomedical-ner-all",
         aggregation_strategy="simple"
     )
 

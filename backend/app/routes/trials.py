@@ -1,8 +1,13 @@
-from fastapi import APIRouter, Depends
+from pathlib import Path
+from urllib.parse import quote
+
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
 from app.auth.router import get_current_user
 import httpx
 
 router = APIRouter()
+KNOWLEDGE_BASE_DIR = Path("data/knowledge_base").resolve()
 
 
 @router.get("/search")
@@ -11,35 +16,75 @@ async def search_trials(
     status: str = "RECRUITING",
     current_user: dict = Depends(get_current_user)
 ):
-    """Search ClinicalTrials.gov API v2 for relevant clinical trials. Completely free."""
+    """Search ClinicalTrials.gov API v2 for relevant clinical trials."""
     async with httpx.AsyncClient() as client:
         try:
+            # We use query.term for broader matching on cancer types
             r = await client.get(
                 "https://clinicaltrials.gov/api/v2/studies",
                 params={
-                    "query.cond": f"cancer {cancer_type}",
+                    "query.term": f"{cancer_type} cancer",
                     "filter.overallStatus": status,
-                    "fields": "NCTId,BriefTitle,Condition,Phase,LocationCountry,BriefSummary",
                     "pageSize": 10
                 },
                 timeout=15.0
             )
-        except Exception:
-            return {"trials": [], "error": "Could not reach ClinicalTrials.gov", "total": 0}
+        except Exception as e:
+            return {"trials": [], "error": f"Connection error: {str(e)}", "total": 0}
 
     if r.status_code != 200:
-        return {"trials": [], "error": "ClinicalTrials.gov returned an error", "total": 0}
+        return {"trials": [], "error": f"External API Error: {r.status_code}", "total": 0}
 
     data = r.json()
-    trials = []
-    for study in data.get("studies", []):
-        p = study.get("protocolSection", {})
-        trials.append({
-            "id": p.get("identificationModule", {}).get("nctId"),
-            "title": p.get("identificationModule", {}).get("briefTitle"),
-            "phase": p.get("designModule", {}).get("phases", ["N/A"]),
-            "summary": p.get("descriptionModule", {}).get("briefSummary", "")[:300],
-            "countries": p.get("contactsLocationsModule", {}).get("locations", []),
+    trials_raw = data.get("studies", [])
+    trials_extracted = []
+
+    for study in trials_raw:
+        proto = study.get("protocolSection", {})
+        ident = proto.get("identificationModule", {})
+        design = proto.get("designModule", {})
+        desc = proto.get("descriptionModule", {})
+        
+        trials_extracted.append({
+            "id": ident.get("nctId"),
+            "title": ident.get("briefTitle"),
+            "phase": design.get("phases", ["N/A"]),
+            "summary": desc.get("briefSummary", "No summary available.")[:300] + "...",
+            "status": proto.get("statusModule", {}).get("overallStatus")
         })
 
-    return {"trials": trials, "total": data.get("totalCount", 0)}
+    return {"trials": trials_extracted, "total": data.get("totalCount", 0)}
+
+
+@router.get("/references")
+async def list_reference_documents(current_user: dict = Depends(get_current_user)):
+    """List cancer knowledge-base PDFs used by the assistant for grounded answers."""
+    if not KNOWLEDGE_BASE_DIR.exists():
+        return {"documents": []}
+
+    docs = []
+    for file_path in sorted(KNOWLEDGE_BASE_DIR.rglob("*.pdf")):
+        rel = file_path.relative_to(KNOWLEDGE_BASE_DIR).as_posix()
+        docs.append({
+            "name": file_path.name,
+            "relative_path": rel,
+            "size_bytes": file_path.stat().st_size,
+            "download_url": f"/api/trials/references/file/{quote(rel, safe='')}"
+        })
+
+    return {"documents": docs}
+
+
+@router.get("/references/file/{doc_path:path}")
+async def download_reference_document(doc_path: str, current_user: dict = Depends(get_current_user)):
+    """Download a knowledge-base PDF by relative path."""
+    target = (KNOWLEDGE_BASE_DIR / doc_path).resolve()
+
+    # Prevent path traversal outside knowledge base directory.
+    if not str(target).startswith(str(KNOWLEDGE_BASE_DIR)):
+        raise HTTPException(status_code=400, detail="Invalid file path")
+
+    if not target.exists() or target.suffix.lower() != ".pdf":
+        raise HTTPException(status_code=404, detail="Reference document not found")
+
+    return FileResponse(path=target, media_type="application/pdf", filename=target.name)

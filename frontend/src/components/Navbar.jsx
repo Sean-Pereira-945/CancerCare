@@ -1,16 +1,30 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useState } from 'react'
+import {
+  ChatBubbleLeftRightIcon,
+  ChartBarSquareIcon,
+  HeartIcon,
+  SparklesIcon,
+  DocumentTextIcon,
+  BeakerIcon,
+  MagnifyingGlassCircleIcon,
+  UserGroupIcon,
+  Bars3Icon,
+  XMarkIcon,
+  BookOpenIcon,
+} from '@heroicons/react/24/outline'
 
 const navItems = [
-  { path: '/chat', label: 'AI Chat', icon: '💬' },
-  { path: '/dashboard', label: 'Dashboard', icon: '📊' },
-  { path: '/symptoms', label: 'Symptoms', icon: '🩺' },
-  { path: '/diet', label: 'Diet Plan', icon: '🥗' },
-  { path: '/reports', label: 'Reports', icon: '📋' },
-  { path: '/medications', label: 'Medications', icon: '💊' },
-  { path: '/trials', label: 'Clinical Trials', icon: '🔬' },
-  { path: '/caregiver', label: 'Caregiver', icon: '🤝' },
+  { path: '/chat', label: 'AI Chat', icon: ChatBubbleLeftRightIcon },
+  { path: '/dashboard', label: 'Dashboard', icon: ChartBarSquareIcon },
+  { path: '/symptoms', label: 'Symptoms', icon: HeartIcon },
+  { path: '/diet', label: 'Diet Plan', icon: SparklesIcon },
+  { path: '/reports', label: 'Reports', icon: DocumentTextIcon },
+  { path: '/medications', label: 'Medications', icon: BeakerIcon },
+  { path: '/trials', label: 'Clinical Trials', icon: MagnifyingGlassCircleIcon },
+  { path: '/references', label: 'References', icon: BookOpenIcon },
+  { path: '/caregiver', label: 'Caregiver', icon: UserGroupIcon },
 ]
 
 export default function Navbar() {
@@ -26,14 +40,9 @@ export default function Navbar() {
       <nav className="hidden lg:flex flex-col w-64 bg-white border-r border-gray-100 h-screen fixed left-0 top-0 z-40">
         {/* Logo */}
         <div className="p-5 border-b border-gray-50">
-          <Link to="/dashboard" className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center shadow-lg shadow-teal-500/20">
-              <span className="text-white text-lg">🎗️</span>
-            </div>
-            <div>
-              <h1 className="text-lg font-bold gradient-text">CancerCare</h1>
-              <p className="text-[10px] text-gray-400 -mt-0.5 tracking-wide">AI Health Platform</p>
-            </div>
+          <Link to="/dashboard" className="block">
+            <h1 className="text-lg font-bold brand-text">CancerCare</h1>
+            <p className="text-[10px] text-slate-500 -mt-0.5 tracking-wide">Clinical Companion</p>
           </Link>
         </div>
 
@@ -41,17 +50,18 @@ export default function Navbar() {
         <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
           {navItems.map(item => {
             const isActive = location.pathname === item.path
+            const Icon = item.icon
             return (
               <Link
                 key={item.path}
                 to={item.path}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
                   isActive
-                    ? 'bg-teal-50 text-teal-700 shadow-sm'
+                    ? 'bg-teal-50 text-teal-800 border border-teal-100 shadow-sm'
                     : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                 }`}
               >
-                <span className="text-base">{item.icon}</span>
+                <Icon className="h-5 w-5" />
                 {item.label}
               </Link>
             )
@@ -66,7 +76,7 @@ export default function Navbar() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-700 truncate">{user?.name || 'User'}</p>
-              <p className="text-xs text-gray-400 truncate">{user?.cancer_type || 'Patient'}</p>
+                <p className="text-xs text-gray-500 truncate">{user?.cancer_type || 'Patient'}</p>
             </div>
           </div>
           <button
@@ -81,22 +91,18 @@ export default function Navbar() {
       {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl border-b border-gray-100">
         <div className="flex items-center justify-between px-4 py-3">
-          <Link to="/dashboard" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center">
-              <span className="text-white text-sm">🎗️</span>
-            </div>
-            <span className="font-bold text-sm gradient-text">CancerCare AI</span>
+          <Link to="/dashboard" className="font-bold text-sm brand-text">
+            CancerCare
           </Link>
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
             className="p-2 hover:bg-gray-100 rounded-lg"
           >
-            <svg className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              {mobileOpen
-                ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              }
-            </svg>
+            {mobileOpen ? (
+              <XMarkIcon className="w-5 h-5 text-gray-600" />
+            ) : (
+              <Bars3Icon className="w-5 h-5 text-gray-600" />
+            )}
           </button>
         </div>
 
@@ -105,6 +111,7 @@ export default function Navbar() {
           <div className="bg-white border-t border-gray-100 px-3 py-3 space-y-1 animate-fade-in">
             {navItems.map(item => {
               const isActive = location.pathname === item.path
+              const Icon = item.icon
               return (
                 <Link
                   key={item.path}
@@ -114,7 +121,7 @@ export default function Navbar() {
                     isActive ? 'bg-teal-50 text-teal-700 font-medium' : 'text-gray-500'
                   }`}
                 >
-                  <span>{item.icon}</span>
+                  <Icon className="h-5 w-5" />
                   {item.label}
                 </Link>
               )

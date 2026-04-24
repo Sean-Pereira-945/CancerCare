@@ -18,7 +18,7 @@ api.interceptors.response.use(
     if (err.response?.status === 401) {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
-      window.location.href = '/login'
+      window.dispatchEvent(new CustomEvent('auth:unauthorized'))
     }
     return Promise.reject(err)
   }
@@ -69,12 +69,15 @@ export const medsAPI = {
 // Clinical Trials API
 export const trialsAPI = {
   searchTrials: (cancerType) => api.get(`/trials/search?cancer_type=${cancerType}`),
+  getReferences: () => api.get('/trials/references'),
 }
 
 // Caregiver API
 export const caregiverAPI = {
   link: (email) => api.post('/caregiver/link', { patient_email: email }),
   getSummary: () => api.get('/caregiver/patient-summary'),
+  logMeal: (data) => api.post('/caregiver/log-meal', data),
+  logMedication: (medicationId) => api.post('/caregiver/log-medication', { medication_id: medicationId }),
 }
 
 export default api
