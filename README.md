@@ -163,7 +163,6 @@ The backend reads environment variables from the project root `.env` and optiona
 Common backend variables:
 
 - `GROQ_API_KEY`
-- `GEMINI_API_KEY`
 - `HUGGINGFACE_API_KEY`
 - `NEON_DATABASE_URL`
 - `NEON_POSTGRES_URL`
