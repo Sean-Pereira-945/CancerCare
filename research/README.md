@@ -1,4 +1,4 @@
-# Research Environment & Paper Generation
+# Research Environment & Paper 
 
 This `research` folder is the dedicated environment for running formal, reproducible experiments and generating publication-ready artifacts (tables, figures, and statistical analyses) for the CancerCare AI paper.
 
