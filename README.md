@@ -6,10 +6,12 @@ CancerCare AI is a full-stack oncology support platform with a React frontend, a
 
 - RAG-powered chatbot grounded in a shared oncology knowledge base and user-uploaded reports
 - PDF medical report upload, parsing, field extraction, and personalized indexing
+- Chat fallback that can still use the latest uploaded report data when vector retrieval misses
 - Personalized diet-plan generation with restriction-aware guardrails
 - Symptom logging and dashboard trend visualization
 - Medication tracking and daily intake logging
 - Caregiver-to-patient linking with role-aware summaries and actions
+- Knowledge-base reference library for the source PDFs used by the assistant
 - JWT authentication for protected routes
 
 ## Repository Structure
@@ -18,7 +20,7 @@ CancerCare AI is a full-stack oncology support platform with a React frontend, a
 - `frontend/`: Vite + React application
 - `research/`: datasets, experiment artifacts, plots, and analysis scripts
 - `data/`: local runtime data such as uploaded reports and FAISS indexes
-- `run_project.bat`: optional Windows launcher for local development
+- `run_project.bat`: Windows launcher that starts both services and verifies backend health
 
 ## Tech Stack
 
@@ -40,7 +42,7 @@ CancerCare AI is a full-stack oncology support platform with a React frontend, a
 The application has three major layers:
 
 1. `frontend/` provides the patient and caregiver web experience.
-2. `backend/` exposes REST APIs for authentication, chat, reports, diet, symptoms, medications, trials, and caregiver workflows.
+2. `backend/` exposes REST APIs for authentication, chat, reports, diet, symptoms, medications, references, and caregiver workflows.
 3. `research/` evaluates the chatbot across multiple RAG variants using an LLM judge and generates figures and statistics.
 
 At runtime, the main product flow is:
@@ -49,14 +51,17 @@ At runtime, the main product flow is:
 2. The user uploads a PDF report.
 3. The backend parses the PDF, stores extracted metadata, and indexes the report text into a user-specific FAISS store.
 4. The chatbot retrieves evidence from both the global knowledge base and the user-specific report index.
-5. The retrieved context is passed to the generation model to answer the question with a medical disclaimer and confidence-aware behavior.
+5. If no report-vector hit is available, the backend can still build context from the latest uploaded report rows stored in SQL.
+6. The retrieved context is passed to the generation model to answer the question with a medical disclaimer and confidence-aware behavior.
 
 ## Key Backend Modules
 
 - `backend/app/main.py`: FastAPI entry point and router registration
 - `backend/app/auth/router.py`: registration, login, and JWT validation
-- `backend/app/routes/chat.py`: main chatbot endpoint and retrieval-confidence gating
+- `backend/app/routes/chat.py`: main chatbot endpoint, retrieval-confidence gating, and report fallback context
 - `backend/app/routes/reports.py`: report upload, parsing, storage, and indexing
+- `backend/app/routes/caregiver.py`: linked-patient summaries, medication actions, and meal logging
+- `backend/app/routes/trials.py`: knowledge-base reference document listing and downloads
 - `backend/app/ml/rag_pipeline.py`: FAISS loading, embeddings, knowledge-base build, and report indexing
 - `backend/app/ml/report_parser.py`: PDF text extraction, regex-based field extraction, and LLM summary
 - `backend/app/ml/diet_engine.py`: diet-plan generation
@@ -138,7 +143,7 @@ cd backend
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8000 --env-file ..\.env
 ```
 
 ### 2) Frontend
@@ -155,6 +160,8 @@ npm run dev
 run_project.bat
 ```
 
+The launcher now validates the backend virtual environment, installs missing dependencies, starts both services, and waits for the backend `/health` endpoint before reporting success.
+
 ## Environment Variables
 
 The backend reads environment variables from the project root `.env` and optionally `backend/.env`.
@@ -162,6 +169,7 @@ The backend reads environment variables from the project root `.env` and optiona
 Common backend variables:
 
 - `GROQ_API_KEY`
+- `GEMINI_API_KEY`
 - `HUGGINGFACE_API_KEY`
 - `NEON_DATABASE_URL`
 - `NEON_POSTGRES_URL`
@@ -189,54 +197,57 @@ Frontend lint:
 cd frontend
 npm run lint
 ```
-## Architecture Diagram 
+
+## Architecture Diagram
+
 ```mermaid
 flowchart LR
-    U["Patient / Caregiver"] --> FE["Frontend\nReact + Vite\n[frontend/src/App.jsx]"]
-    FE --> API["Backend API\nFastAPI\n[backend/app/main.py]"]
+    U["Patient / Caregiver"] --> FE["Frontend\nReact + Vite"]
+    FE --> API["Backend API\nFastAPI"]
 
-    API --> AUTH["Auth Layer\nJWT register/login/current user\n[backend/app/auth/router.py]"]
-    API --> CHAT["Chat Route\n[backend/app/routes/chat.py]"]
-    API --> REPORTS["Reports Route\n[backend/app/routes/reports.py]"]
-    API --> DIET["Diet Route\n[backend/app/routes/diet.py]"]
-    API --> SYM["Symptoms Route\n[backend/app/routes/symptoms.py]"]
-    API --> MEDS["Medications Route\n[backend/app/routes/medications.py]"]
-    API --> CARE["Caregiver Route\n[backend/app/routes/caregiver.py]"]
-    API --> TRIALS["Trials Route\n[backend/app/routes/trials.py]"]
+    API --> AUTH["Auth Layer\nJWT"]
+    API --> CHAT["Chat Route"]
+    API --> REPORTS["Reports Route"]
+    API --> DIET["Diet Route"]
+    API --> SYM["Symptoms Route"]
+    API --> MEDS["Medications Route"]
+    API --> CARE["Caregiver Route"]
+    API --> REFS["References Route"]
 
-    AUTH --> SQL["SQL Database\nNeon/Postgres or SQLite fallback\n[backend/app/database.py]"]
+    AUTH --> SQL["SQL Database\nNeon/Postgres or SQLite fallback"]
     REPORTS --> SQL
     DIET --> SQL
     SYM --> SQL
     MEDS --> SQL
     CARE --> SQL
+    CHAT --> SQL
 
-    REPORTS --> PARSER["Report Parser\nPyMuPDF + regex + LLM summary\n[backend/app/ml/report_parser.py]"]
-    PARSER --> RISK["Risk Model\nPickled ML model\n[backend/app/ml/risk_model.py]"]
+    REPORTS --> PARSER["Report Parser\nPyMuPDF + regex + LLM summary"]
+    PARSER --> RISK["Risk Model\nPickled ML model"]
     PARSER --> USERFILES["User Report Files\n[data/user_reports/]"]
-    PARSER --> USERVS["User Vector Store\nFAISS per user\n[data/vector_store/user_<id>/]"]
+    PARSER --> USERVS["User Vector Store\nFAISS per user"]
 
-    CHAT --> RAG["RAG Pipeline\n[backend/app/ml/rag_pipeline.py]"]
-    RAG --> GLOBALVS["Global Vector Store\nFAISS knowledge base\n[data/vector_store/]"]
+    CHAT --> RAG["RAG Pipeline"]
+    RAG --> GLOBALVS["Global Vector Store\nFAISS knowledge base"]
     RAG --> USERVS
-    GLOBALVS --> KB["Knowledge Base PDFs\n[data/knowledge_base/]"]
+    GLOBALVS --> KB["Knowledge Base PDFs"]
+    CHAT --> DBFALLBACK["Latest report fallback\nfrom SQL rows"]
 
     CHAT --> GROQ["Groq LLM\nllama-3.3-70b-versatile"]
     DIET --> GROQ
     PARSER --> GROQ
-
-    TRIALS --> CTGOV["ClinicalTrials.gov API"]
-
 ```
-## Dataflow Diagram 
+
+## Data Flow Diagram
+
 ```mermaid
 flowchart TD
-    A["User logs in"] --> B["Frontend stores JWT\n[frontend/src/hooks/useAuth.jsx]"]
-    B --> C["Frontend calls backend with Bearer token\n[frontend/src/lib/api.js]"]
+    A["User logs in"] --> B["Frontend stores JWT"]
+    B --> C["Frontend calls backend with Bearer token"]
 
     C --> D["Upload report PDF\n/api/reports/upload"]
-    D --> E["Save original PDF to disk\n[data/user_reports/]"]
-    D --> F["Parse PDF text\n[backend/app/ml/report_parser.py]"]
+    D --> E["Save original PDF to disk"]
+    D --> F["Parse PDF text"]
     F --> G["Extract fields with regex"]
     F --> H["Summarize with LLM"]
     G --> I["Save report metadata/text to SQL"]
@@ -246,37 +257,40 @@ flowchart TD
     C --> K["User asks chat question\n/api/chat/message"]
     K --> L["Load global FAISS knowledge base"]
     K --> M["Load user-specific FAISS report index"]
-    L --> N["Retrieve top chunks"]
-    M --> N
-    N --> O["Assemble context"]
-    O --> P["Compute retrieval confidence"]
-    P --> Q{"Confidence high enough?"}
+    M --> N{"User report hit?"}
+    N -->|Yes| O["Use personalized report chunks"]
+    N -->|No| P["Build fallback context from latest report rows in SQL"]
+    L --> Q["Retrieve global chunks"]
+    O --> R["Assemble context"]
+    P --> R
+    Q --> R
+    R --> S["Compute retrieval confidence"]
+    S --> T{"Confidence high enough?"}
 
-    Q -->|No| R["Return abstain/cautious response"]
-    Q -->|Yes| S["Send prompt + context to Groq LLM"]
-    S --> T["Return grounded answer + disclaimer"]
+    T -->|No| U["Return abstain/cautious response"]
+    T -->|Yes| V["Send prompt + context to Groq LLM"]
+    V --> W["Return grounded answer + disclaimer"]
 
-    C --> U["User logs symptoms / meals / meds"]
-    U --> V["Persist structured tracking data in SQL"]
-    V --> W["Dashboard queries trends and adherence"]
+    C --> X["User logs symptoms / meals / meds"]
+    X --> Y["Persist structured tracking data in SQL"]
+    Y --> Z["Dashboard and caregiver views query trends"]
 
-    X["Research dataset\n[research/datasets/eval_qa.jsonl]"] --> Y["Experiment runner\n[backend/experiment_runner.py]"]
-    Y --> Z["Calls /api/chat/message for variants A0-A5"]
-    Z --> AA["Collect response + context"]
-    AA --> AB["LLM-as-judge scoring\n[backend/evaluation/metrics.py]"]
-    AB --> AC["Raw results JSON\n[research/experiment_raw_data.json]"]
-    AC --> AD["Aggregate CSV metrics\n[research/experiment_matrix.csv]"]
-    AC --> AE["Statistical analysis\n[research/statistical_analysis.py]"]
-    AD --> AF["Plots\n[research/generate_plots.py]"]
-
+    AA["Research dataset"] --> AB["Experiment runner"]
+    AB --> AC["Calls /api/chat/message for variants A0-A5"]
+    AC --> AD["Collect response + context"]
+    AD --> AE["LLM-as-judge scoring"]
+    AE --> AF["Raw results JSON"]
+    AF --> AG["Aggregate CSV metrics"]
+    AF --> AH["Statistical analysis"]
+    AG --> AI["Plots"]
 ```
-
 
 ## Notes
 
 - Large generated assets such as FAISS indexes, uploaded reports, and caches should stay out of version control.
 - The backend can run with SQLite locally when a hosted Postgres connection is not configured.
 - MongoDB support exists in the configuration layer, but the primary application flow is centered on SQLAlchemy models plus filesystem and FAISS storage.
+- The clinical-trials search feature has been removed from the app surface; the remaining `References` section is the knowledge-base document library.
 
 ## Medical Disclaimer
 

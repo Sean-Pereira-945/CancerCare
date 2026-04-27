@@ -1,35 +1,42 @@
-# Research Environment & Paper 
+# Research Environment & Paper Generation
 
-This `research` folder is the dedicated environment for running formal, reproducible experiments and generating publication-ready artifacts (tables, figures, and statistical analyses) for the CancerCare AI paper.
+This `research` folder is the dedicated environment for running formal, reproducible experiments and generating publication-ready artifacts such as tables, figures, and statistical analyses for the CancerCare AI paper.
 
 ## Folder Purpose
-The goal of this directory is strictly to evaluate the performance of our Retrieval-Augmented Generation (RAG) system across different ablation variants (A0-A5), run our automated LLM-as-a-judge pipelines, and compile the final data into formats that can be directly pasted into a research paper.
+
+The goal of this directory is to evaluate the performance of the Retrieval-Augmented Generation (RAG) system across different ablation variants (`A0`-`A5`), run automated LLM-as-a-judge pipelines, and compile the final data into formats suitable for reports and papers.
 
 ## Core Files & Artifacts
 
 ### 1. Statistical Analysis & Plotting
-- **`generate_plots.py`**: Reads the output CSVs and generates publication-ready graphs (stored in `figures/`), including the safety vs. hallucination tradeoff chart and comparative bar charts.
-- **`statistical_analysis.py`**: Takes the raw JSON experiment data and performs paired statistical significance tests (e.g., McNemar's Test, Bootstrap Confidence Intervals) to validate if improvements between variants are statistically meaningful.
-- **`slice_analysis.py`**: Computes performance metrics segmented by question-type to generate deep-dive performance tables.
-- **`summarize_quality_report.py`**: Translates the raw system quality JSON into Markdown/CSV tables suitable for the paper's appendix.
+
+- `generate_plots.py`: reads the output CSVs and generates publication-ready graphs into `figures/`
+- `statistical_analysis.py`: performs paired statistical comparison such as McNemar-style testing and bootstrap confidence intervals
+- `slice_analysis.py`: computes performance metrics segmented by question type
+- `summarize_quality_report.py`: turns the quality report JSON into lighter-weight summaries
 
 ### 2. Core Datasets & Results
-- **`datasets/eval_qa.jsonl`**: The benchmark Q&A dataset used for all evaluations.
-- **`experiment_matrix.csv` & `experiment_raw_data.json`**: The canonical output files from the `experiment_runner.py` (located in the backend). These hold the final results of the ablation studies.
-- **`experiment_raw_data.tiny20.json`**: Retained for fast, localized testing of the RAG responses and evaluation pipelines without running the full dataset.
+
+- `datasets/eval_qa.jsonl`: benchmark Q&A dataset used for evaluation
+- `experiment_matrix.csv`: aggregated per-variant metric table
+- `experiment_raw_data.json`: item-level model outputs and judge scores
+- `experiment_raw_data.tiny20.json`: small local-debug subset
+- `experiment_quality_report.json`: run coverage, failure counts, and diagnostics
 
 ### 3. Documentation
-- **`annotation_guidelines.md`**: The strict guidelines used by the LLM judge (and human annotators) for grading the faithfulness, hallucination rate, and citation correctness of the model responses.
+
+- `annotation_guidelines.md`: instructions for dataset creation and grading
 
 ## Experiment Outputs
 
-The main experiment outputs in this folder are:
+The main outputs produced by the research workflow are:
 
-- **`experiment_matrix.csv`**: aggregated per-variant metric table
-- **`experiment_raw_data.json`**: item-level model outputs and judge scores
-- **`experiment_quality_report.json`**: run coverage, failure counts, and diagnostic metadata
-- **`statistical_results.txt`**: saved statistical comparison output
-- **`slice_analysis_A5.json`**: per-question-type metric breakdown for the A5 configuration
+- `experiment_matrix.csv`
+- `experiment_raw_data.json`
+- `experiment_quality_report.json`
+- `experiment_failures.jsonl`
+- `statistical_results.txt`
+- `slice_analysis_A5.json`
 
 ## Figures
 
@@ -47,6 +54,29 @@ This scatter plot highlights the relationship between hallucination rate and saf
 
 ![Safety vs Hallucination Tradeoff](figures/safety_hallucination_tradeoff.png)
 
+## Evaluation Setup
+
+The experiment runner lives in `backend/experiment_runner.py` and executes the same `/api/chat/message` endpoint used by the product. That means the research pipeline evaluates the real backend behavior rather than a disconnected notebook-only mock.
+
+For each evaluation item:
+
+1. A question is sent to the chat API under one of the configured variants.
+2. The response and retrieved context are collected.
+3. A judge LLM scores the output on binary metrics.
+4. Raw per-item outputs are saved.
+5. Aggregated metrics, figures, and statistics are derived from those saved outputs.
+
+## Metrics
+
+The main judged metrics are:
+
+- `faithfulness`
+- `hallucination`
+- `safety_violation`
+- `citation_correctness`
+
+Each metric is scored per item and then averaged by variant. The statistical script compares paired outputs between variants on overlapping items only.
+
 ## Getting Started
 
 To reproduce the analysis for the paper:
@@ -63,10 +93,12 @@ To reproduce the analysis for the paper:
    ```powershell
    ..\backend\.venv\Scripts\python.exe statistical_analysis.py --raw-data "experiment_raw_data.json"
    ```
-
 4. **Optional Slice Analysis** (from `research/`):
    ```powershell
    ..\backend\.venv\Scripts\python.exe slice_analysis.py --raw-data "experiment_raw_data.json" --dataset "datasets/eval_qa.jsonl" --variant "A5" --output "slice_analysis_A5.json"
    ```
 
-*Note: Non-research utilities like `ingest_reports.py` and `check_db_logs.py` have been migrated to `backend/scripts/` to keep this environment strictly focused on paper reproduction.*
+## Notes
+
+- Keep this folder focused on reproducible evaluation artifacts rather than app-runtime utilities.
+- Non-research scripts such as general ingestion/debug helpers should live under `backend/` or dedicated utility folders instead.
