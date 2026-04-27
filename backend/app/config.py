@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     # App
     environment: str = "development"
     frontend_url: str = "http://localhost:5173"
+    auto_create_tables: bool = True
 
     class Config:
         env_file = (PROJECT_ROOT / ".env", BACKEND_DIR / ".env")

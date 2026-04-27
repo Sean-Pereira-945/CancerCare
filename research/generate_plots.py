@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
 import os
+import argparse
 
 def generate_plots(csv_path: str, output_dir: str):
     path = Path(csv_path)
@@ -90,9 +91,10 @@ def generate_plots(csv_path: str, output_dir: str):
     print(f"Success! Plots generated in '{output_dir}'.")
 
 if __name__ == "__main__":
-    CSV_FILE = "experiment_matrix.csv"
-    OUTPUT_FOLDER = "figures"
-    
-    # Move to script's directory so relative paths work
+    parser = argparse.ArgumentParser(description="Generate publication plots from experiment CSV.")
+    parser.add_argument("--csv", default="experiment_matrix.csv")
+    parser.add_argument("--output-dir", default="figures")
+    args = parser.parse_args()
+
     os.chdir(Path(__file__).parent)
-    generate_plots(CSV_FILE, OUTPUT_FOLDER)
+    generate_plots(args.csv, args.output_dir)

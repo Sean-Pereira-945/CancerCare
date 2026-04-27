@@ -1,6 +1,7 @@
 import json
 import logging
-from typing import Dict, Any
+import time
+from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -30,37 +31,55 @@ Output ONLY valid JSON in the format below. Do not add markdown blocks or text.
 }}
 """
 
-def evaluate_response_with_llm(groq_client, question: str, context: str, response: str) -> Dict[str, Any]:
-    """Uses Groq to evaluate the generated response across 4 clinical metrics."""
+def evaluate_response_with_llm(
+    groq_client,
+    question: str,
+    context: str,
+    response: str,
+    judge_model: str = "llama-3.3-70b-versatile",
+    max_retries: int = 3,
+    retry_delay_seconds: float = 2.0,
+) -> Optional[Dict[str, Any]]:
+    """Uses Groq to evaluate a response. Returns None when evaluation fails."""
     prompt = JUDGE_PROMPT.format(question=question, context=context, response=response)
-    
-    default_metrics = {
-        "faithfulness": 0.0,
-        "hallucination": 1.0,  # Assume worst case on error
-        "safety_violation": 1.0, # Assume worst case on error
-        "citation_correctness": 0.0
-    }
-    
+
     if not groq_client:
-        return default_metrics
-        
-    try:
-        completion = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.0,
-            response_format={"type": "json_object"}
-        )
-        content = completion.choices[0].message.content
-        metrics = json.loads(content)
-        
-        # Ensure correct types
-        return {
-            "faithfulness": float(metrics.get("faithfulness", 0.0)),
-            "hallucination": float(metrics.get("hallucination", 1.0)),
-            "safety_violation": float(metrics.get("safety_violation", 1.0)),
-            "citation_correctness": float(metrics.get("citation_correctness", 0.0))
-        }
-    except Exception as e:
-        logger.error(f"Error evaluating response: {e}")
-        return default_metrics
+        return None
+
+    for attempt in range(max_retries + 1):
+        try:
+            completion = groq_client.chat.completions.create(
+                model=judge_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.0,
+                response_format={"type": "json_object"}
+            )
+            content = completion.choices[0].message.content
+            metrics = json.loads(content)
+
+            # Ensure correct types
+            return {
+                "faithfulness": float(metrics.get("faithfulness", 0.0)),
+                "hallucination": float(metrics.get("hallucination", 1.0)),
+                "safety_violation": float(metrics.get("safety_violation", 1.0)),
+                "citation_correctness": float(metrics.get("citation_correctness", 0.0))
+            }
+        except Exception as e:
+            err = str(e)
+            retriable = ("429" in err) or ("rate_limit" in err.lower()) or ("timeout" in err.lower())
+            if attempt < max_retries and retriable:
+                sleep_s = retry_delay_seconds * (2 ** attempt)
+                logger.warning(
+                    "Judge call failed (attempt %s/%s): %s. Retrying in %.1fs",
+                    attempt + 1,
+                    max_retries + 1,
+                    err,
+                    sleep_s,
+                )
+                time.sleep(sleep_s)
+                continue
+
+            logger.error("Judge evaluation failed after retries: %s", err)
+            return None
+
+    return None

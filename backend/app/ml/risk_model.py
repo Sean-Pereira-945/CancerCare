@@ -7,15 +7,27 @@ MODEL_PATH = Path("models/risk_model.pkl")
 SCALER_PATH = Path("models/risk_scaler.pkl")
 
 
+_model = None
+_scaler = None
+
+
 def load_risk_model():
-    """Load the pre-trained XGBoost risk model and scaler."""
+    """Load the pre-trained XGBoost risk model and scaler (cached)."""
+    global _model, _scaler
+    if _model is not None and _scaler is not None:
+        return _model, _scaler
+
     if not MODEL_PATH.exists() or not SCALER_PATH.exists():
         return None, None
-    with open(MODEL_PATH, "rb") as f:
-        model = pickle.load(f)
-    with open(SCALER_PATH, "rb") as f:
-        scaler = pickle.load(f)
-    return model, scaler
+    
+    try:
+        with open(MODEL_PATH, "rb") as f:
+            _model = pickle.load(f)
+        with open(SCALER_PATH, "rb") as f:
+            _scaler = pickle.load(f)
+        return _model, _scaler
+    except Exception:
+        return None, None
 
 
 def predict_risk(features: Dict) -> Optional[Dict]:

@@ -97,6 +97,7 @@ class ChatRequest(BaseModel):
     history: Optional[List[ChatMessage]] = []
     use_report: Optional[bool] = True
     experiment_config: Optional[ExperimentConfig] = None
+    include_retrieval_debug: Optional[bool] = False
 
 
 @router.post("/message")
@@ -111,6 +112,7 @@ async def chat(request: ChatRequest, current_user: dict = Depends(get_current_us
     # Load global knowledge base
     global_scores = []
     global_docs = []
+    global_pairs = []
     if exp_config.use_global_retrieval:
         try:
             global_vs = load_vectorstore()
@@ -124,6 +126,7 @@ async def chat(request: ChatRequest, current_user: dict = Depends(get_current_us
     user_docs = []
     user_store_path = Path(f"data/vector_store/user_{user_id}")
     user_scores = []
+    user_pairs = []
     if exp_config.use_patient_retrieval and user_store_path.exists():
         try:
             embeddings = get_embeddings()
@@ -148,12 +151,21 @@ async def chat(request: ChatRequest, current_user: dict = Depends(get_current_us
 
     if exp_config.use_uncertainty_gating:
         if retrieval_confidence < LOW_CONFIDENCE_THRESHOLD:
-            return {
+            out = {
                 "reply": _uncertainty_response(retrieval_confidence),
                 "sources_used": len(user_docs) + len(global_docs),
                 "confidence": retrieval_confidence,
-                "response_mode": "abstain"
+                "response_mode": "abstain",
+                "medical_disclaimer": "CancerCare AI does not replace professional medical advice."
             }
+            if request.include_retrieval_debug:
+                out["retrieval_debug"] = {
+                    "global_scores": global_scores,
+                    "user_scores": user_scores,
+                    "global_docs": len(global_docs),
+                    "user_docs": len(user_docs),
+                }
+            return out
 
     # Build messages for LLM
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -166,12 +178,21 @@ async def chat(request: ChatRequest, current_user: dict = Depends(get_current_us
 
     # Call Groq (Llama 3.1 70B — fast and free)
     if not groq_client:
-        return {
+        out = {
             "reply": _fallback_reply(request.message, context),
             "sources_used": len(user_docs) + len(global_docs),
             "confidence": retrieval_confidence,
-            "response_mode": "fallback"
+            "response_mode": "fallback",
+            "medical_disclaimer": "CancerCare AI does not replace professional medical advice."
         }
+        if request.include_retrieval_debug:
+            out["retrieval_debug"] = {
+                "global_scores": global_scores,
+                "user_scores": user_scores,
+                "global_docs": len(global_docs),
+                "user_docs": len(user_docs),
+            }
+        return out
 
     try:
         response = groq_client.chat.completions.create(
@@ -189,10 +210,21 @@ async def chat(request: ChatRequest, current_user: dict = Depends(get_current_us
     else:
         response_mode = "normal"
         
-    return {
+    out = {
         "reply": answer,
         "sources_used": len(user_docs) + len(global_docs),
         "confidence": retrieval_confidence,
         "response_mode": response_mode,
-        "context": context
+        "context": context,
+        "medical_disclaimer": "CancerCare AI does not replace professional medical advice."
     }
+    if request.include_retrieval_debug:
+        out["retrieval_debug"] = {
+            "global_scores": global_scores,
+            "user_scores": user_scores,
+            "global_docs": len(global_docs),
+            "user_docs": len(user_docs),
+            "top_global_confidence": _score_to_confidence(global_scores[0]) if global_scores else 0.0,
+            "top_user_confidence": _score_to_confidence(user_scores[0]) if user_scores else 0.0,
+        }
+    return out

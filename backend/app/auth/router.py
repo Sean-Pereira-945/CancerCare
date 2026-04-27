@@ -14,14 +14,15 @@ security = HTTPBearer()
 async def register(data: RegisterRequest, db: Session = Depends(get_db)):
     """Register a new patient or caregiver account."""
     # Check if user exists
-    existing = db.query(User).filter(User.email == data.email).first()
+    email_lower = data.email.lower().strip()
+    existing = db.query(User).filter(User.email == email_lower).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
 
     # Create user
     user = User(
         name=data.name,
-        email=data.email,
+        email=email_lower,
         password_hash=hash_password(data.password),
         cancer_type=data.cancer_type,
         role=data.role
@@ -31,13 +32,24 @@ async def register(data: RegisterRequest, db: Session = Depends(get_db)):
     db.refresh(user)
 
     token = create_access_token({"sub": str(user.id), "role": user.role})
-    return {"access_token": token, "token_type": "bearer"}
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id": str(user.id),
+            "name": user.name,
+            "email": user.email,
+            "cancer_type": user.cancer_type or "",
+            "role": user.role
+        }
+    }
 
 
 @router.post("/login")
 async def login(data: LoginRequest, db: Session = Depends(get_db)):
     """Login with email and password, returns JWT token."""
-    user = db.query(User).filter(User.email == data.email).first()
+    email_lower = data.email.lower().strip()
+    user = db.query(User).filter(User.email == email_lower).first()
 
     if not user or not verify_password(data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")

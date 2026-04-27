@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
 
 const api = axios.create({ baseURL: `${API_BASE}/api` })
 
@@ -40,6 +40,7 @@ export const dietAPI = {
   generatePlan: (profile) => api.post('/diet/generate-plan', profile),
   logMeal: (data) => api.post('/diet/log-meal', data),
   getAdherence: () => api.get('/diet/adherence'),
+  getAdherenceTrends: (days) => api.get(`/diet/adherence-trends?days=${days}`),
 }
 
 // Reports API
@@ -64,6 +65,7 @@ export const medsAPI = {
   list: () => api.get('/medications/list'),
   update: (id, data) => api.put(`/medications/${id}`, data),
   delete: (id) => api.delete(`/medications/${id}`),
+  log: (data) => api.post('/medications/log', data),
 }
 
 // Clinical Trials API

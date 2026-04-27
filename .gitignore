@@ -6,6 +6,7 @@ __pycache__/
 *.pyo
 *.pyd
 *.sqlite3
+*.db
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
@@ -31,6 +32,10 @@ data/user_reports/
 data/vector_store/
 vector_store/
 backend/data/user_reports/
+backend/cancercare.db
+backend/run_output.txt
+commands.txt
+scratch/
 
 # Node.js
 node_modules/
@@ -61,3 +66,17 @@ _startup_test.txt
 *.log
 *.tmp
 *.bak
+
+# Research artifacts
+research/experiment_failures.jsonl
+research/experiment_quality_report.json
+research/experiment_raw_data.json
+research/experiment_raw_data.*.json
+research/slice_analysis_*.json
+research/statistical_results.txt
+
+# Local debug/utility scripts
+backend/check_*.py
+backend/debug_*.py
+backend/test_*.py
+backend/reset_password.py

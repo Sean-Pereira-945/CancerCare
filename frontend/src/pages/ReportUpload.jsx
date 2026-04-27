@@ -73,21 +73,50 @@ export default function ReportUpload() {
         </button>
       </form>
 
-      {/* Extracted Fields */}
-      {uploadMutation.data && (
+      {/* Extracted Information Section - Only show if data exists */}
+      {uploadMutation.data && (uploadMutation.data.extracted?.summary || Object.keys(uploadMutation.data.extracted || {}).filter(k => k !== 'summary' && k !== 'recovery_status' && k !== 'key_metrics').length > 0) && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 animate-fade-in">
+          {/* Risk Assessment */}
+          {uploadMutation.data.risk_assessment && !uploadMutation.data.risk_assessment.error && (
+            <div className="mb-6 p-4 bg-teal-50 rounded-2xl border border-teal-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-teal-800">Initial Risk Assessment</h3>
+                <p className="text-xs text-teal-600">Based on extracted clinical markers</p>
+              </div>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-teal-700">{uploadMutation.data.risk_assessment.risk_score}%</div>
+                <div className="text-xs font-bold text-teal-500 uppercase tracking-wider">{uploadMutation.data.risk_assessment.risk_level} Risk</div>
+              </div>
+            </div>
+          )}
+
           <h2 className="text-lg font-semibold text-gray-700 mb-4">Extracted Information</h2>
-          {uploadMutation.data.extracted && Object.keys(uploadMutation.data.extracted).length > 0 ? (
+          
+          {/* AI Analysis Summary */}
+          {uploadMutation.data.extracted?.summary && (
+            <div className="mb-6 space-y-3">
+              <div className="bg-teal-50/50 rounded-2xl p-5 border border-teal-100/50">
+                <span className="text-[10px] font-bold text-teal-600 uppercase tracking-widest">AI Insight: Recovery Status</span>
+                <p className="text-lg font-bold text-teal-800 mt-1">{uploadMutation.data.extracted.recovery_status}</p>
+                <div className="mt-4 pt-4 border-t border-teal-100">
+                  <span className="text-[10px] font-bold text-teal-600 uppercase tracking-widest">Clinical Summary</span>
+                  <p className="text-sm text-teal-900 leading-relaxed mt-2">{uploadMutation.data.extracted.summary}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {uploadMutation.data.extracted && Object.keys(uploadMutation.data.extracted).filter(k => k !== 'summary' && k !== 'recovery_status' && k !== 'key_metrics').length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {Object.entries(uploadMutation.data.extracted).map(([key, value]) => (
+              {Object.entries(uploadMutation.data.extracted)
+                .filter(([key]) => key !== 'summary' && key !== 'recovery_status' && key !== 'key_metrics')
+                .map(([key, value]) => (
                 <div key={key} className="bg-gray-50 rounded-xl p-3">
                   <span className="text-xs text-gray-400 font-medium capitalize">{key.replace('_', ' ')}</span>
                   <p className="text-sm text-gray-700 font-medium mt-0.5">{value}</p>
                 </div>
               ))}
             </div>
-          ) : (
-            <p className="text-sm text-gray-400">No structured fields could be extracted. The full text has been indexed for the chatbot.</p>
           )}
           <p className="text-xs text-teal-600 mt-4 flex items-center gap-1">
             ✅ Report indexed — you can now ask the chatbot questions about this report
@@ -111,15 +140,27 @@ export default function ReportUpload() {
               <div key={i} className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl hover:bg-teal-50 transition-colors">
                 <div className="w-10 h-10 rounded-lg bg-teal-100 flex items-center justify-center text-teal-600 text-lg">📋</div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-700 truncate">{report.filename}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-gray-700 truncate">{report.filename}</p>
+                    {report.extracted_fields?.recovery_status && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-600 border border-teal-100 uppercase">
+                        {report.extracted_fields.recovery_status}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-gray-400">
                     {report.uploaded_at ? new Date(report.uploaded_at).toLocaleDateString() : 'Unknown date'}
                     {report.page_count && ` · ${report.page_count} pages`}
                   </p>
+                  {report.extracted_fields?.summary && (
+                    <p className="text-xs text-gray-500 mt-2 line-clamp-2 italic bg-white/50 p-2 rounded-lg border border-gray-100">
+                      "{report.extracted_fields.summary}"
+                    </p>
+                  )}
                 </div>
-                {report.extracted_fields && Object.keys(report.extracted_fields).length > 0 && (
+                {report.extracted_fields && Object.keys(report.extracted_fields).filter(k => k !== 'summary' && k !== 'recovery_status' && k !== 'key_metrics').length > 0 && (
                   <span className="text-xs text-teal-600 bg-teal-50 px-2.5 py-1 rounded-full">
-                    {Object.keys(report.extracted_fields).length} fields
+                    {Object.keys(report.extracted_fields).filter(k => k !== 'summary' && k !== 'recovery_status' && k !== 'key_metrics').length} markers
                   </span>
                 )}
               </div>

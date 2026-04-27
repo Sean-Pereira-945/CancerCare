@@ -1,6 +1,6 @@
 import json
-import math
 import random
+import argparse
 from pathlib import Path
 
 def mcnemar_test(a_scores, b_scores):
@@ -63,7 +63,8 @@ def bootstrap_ci(a_scores, b_scores, iterations=10000, alpha=0.05):
     mean_diff = sum(diffs) / n
     return mean_diff, (boot_means[lower_idx], boot_means[upper_idx])
 
-def analyze_results(raw_data_file: str, base_variant="A1", compare_variant="A5"):
+def analyze_results(raw_data_file: str, base_variant="A1", compare_variant="A5", bootstrap_iterations=10000, seed=42):
+    random.seed(seed)
     path = Path(raw_data_file)
     if not path.exists():
         print(f"Error: Could not find raw data file at {raw_data_file}")
@@ -77,8 +78,15 @@ def analyze_results(raw_data_file: str, base_variant="A1", compare_variant="A5")
         print(f"Error: Missing data for {base_variant} or {compare_variant}")
         return
 
-    base_items = {item["item_id"]: item["metrics"] for item in data[base_variant]}
-    compare_items = {item["item_id"]: item["metrics"] for item in data[compare_variant]}
+    def only_ok_metrics(rows):
+        filtered = {}
+        for item in rows:
+            if item.get("status", "ok") == "ok" and isinstance(item.get("metrics"), dict):
+                filtered[item["item_id"]] = item["metrics"]
+        return filtered
+
+    base_items = only_ok_metrics(data[base_variant])
+    compare_items = only_ok_metrics(data[compare_variant])
 
     # Align items
     common_ids = set(base_items.keys()).intersection(set(compare_items.keys()))
@@ -106,7 +114,7 @@ def analyze_results(raw_data_file: str, base_variant="A1", compare_variant="A5")
         print(f"  Absolute Difference: {diff:+.4f}")
         
         # 2. Bootstrap CI
-        mean_diff, (ci_low, ci_high) = bootstrap_ci(base_scores, compare_scores)
+        mean_diff, (ci_low, ci_high) = bootstrap_ci(base_scores, compare_scores, iterations=bootstrap_iterations)
         print(f"  Bootstrap 95% CI of Difference: [{ci_low:+.4f}, {ci_high:+.4f}]")
         
         # 3. McNemar's Test
@@ -127,15 +135,20 @@ def analyze_results(raw_data_file: str, base_variant="A1", compare_variant="A5")
         print()
 
 if __name__ == "__main__":
-    RAW_DATA_FILE = "experiment_raw_data.json"
-    
-    # Ensure working directory is research folder
-    os_path = Path(__file__).parent
+    parser = argparse.ArgumentParser(description="Run paired statistical analysis on experiment raw outputs.")
+    parser.add_argument("--raw-data", default="experiment_raw_data.json")
+    parser.add_argument("--base-variant", default="A1")
+    parser.add_argument("--compare-variant", default="A5")
+    parser.add_argument("--bootstrap-iterations", type=int, default=10000)
+    parser.add_argument("--seed", type=int, default=42)
+    args = parser.parse_args()
+
     import os
-    os.chdir(os_path)
-    
-    # Typical research ablation: compare Generic RAG (A1) vs Full System (A5)
-    analyze_results(RAW_DATA_FILE, base_variant="A1", compare_variant="A5")
-    
-    # You can also compare Ablations, e.g. A2 vs A4 to isolate the effect of gating
-    # analyze_results(RAW_DATA_FILE, base_variant="A2", compare_variant="A4")
+    os.chdir(Path(__file__).parent)
+    analyze_results(
+        raw_data_file=args.raw_data,
+        base_variant=args.base_variant,
+        compare_variant=args.compare_variant,
+        bootstrap_iterations=args.bootstrap_iterations,
+        seed=args.seed,
+    )

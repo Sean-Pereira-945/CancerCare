@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
-import { symptomsAPI } from '../lib/api'
+import { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import SymptomChart from '../components/SymptomChart'
+import DietAdherenceChart from '../components/DietAdherenceChart'
 import MedicalDisclaimer from '../components/MedicalDisclaimer'
 import { Link } from 'react-router-dom'
+import { dietAPI, symptomsAPI } from '../lib/api'
 import {
   ChatBubbleLeftRightIcon,
   HeartIcon,
@@ -16,12 +17,19 @@ export default function Dashboard() {
   const { user } = useAuth()
   const [days, setDays] = useState(14)
 
-  const { data: trendsData, isLoading: loading } = useQuery({
+  const { data: trendsData, isLoading: loadingSymptoms, refetch: refetchSymptoms } = useQuery({
     queryKey: ['symptoms', 'trends', days],
     queryFn: () => symptomsAPI.getTrends(days).then(res => res.data.trends),
   })
 
+  const { data: adherenceData, isLoading: loadingDiet, refetch: refetchDiet } = useQuery({
+    queryKey: ['diet', 'trends', days],
+    queryFn: () => dietAPI.getAdherenceTrends(days).then(res => res.data),
+    refetchInterval: 10000, // Auto-update every 10 seconds
+  })
+
   const data = trendsData || []
+  const dietTrends = adherenceData || []
 
   const quickActions = [
     { path: '/chat', icon: ChatBubbleLeftRightIcon, label: 'AI Chat', desc: 'Ask care-related questions', color: 'bg-teal-50 text-teal-700 border-teal-100' },
@@ -80,17 +88,39 @@ export default function Dashboard() {
         </div>
         <div className="surface-card p-5">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center text-lg">📝</div>
-            <span className="text-xs text-gray-400 font-medium">Logs Recorded</span>
+            <div className="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center text-lg">🥗</div>
+            <span className="text-xs text-gray-400 font-medium">Diet Adherence</span>
           </div>
-          <p className="text-2xl font-bold text-gray-800">{data.length}</p>
+          <p className="text-2xl font-bold text-gray-800">{dietTrends.length > 0 ? dietTrends[dietTrends.length - 1].rate : 0}<span className="text-sm text-gray-400 font-normal">%</span></p>
         </div>
       </div>
+
+      {/* Recent Caregiver Updates */}
+      {dietTrends.length > 0 && (
+        <div className="animate-slide-up" style={{ animationDelay: '250ms' }}>
+          <div className="bg-teal-50 border border-teal-100 rounded-2xl p-4 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm">🤝</div>
+            <div className="flex-1">
+              <h3 className="text-sm font-bold text-teal-800">Latest Caregiver Update</h3>
+              <p className="text-xs text-teal-700">Your caregiver recently logged your {days}d adherence trends.</p>
+            </div>
+            <div className="text-right">
+              <span className="text-[10px] font-bold text-teal-600 uppercase tracking-widest">Status</span>
+              <p className="text-xs font-bold text-teal-800">Synced</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Chart */}
       <div className="animate-slide-up" style={{ animationDelay: '300ms' }}>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-700">Symptom Trends</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-gray-700">Symptom Trends</h2>
+            <button onClick={() => refetchSymptoms()} className="p-1 hover:bg-gray-100 rounded-full transition-colors text-gray-400" title="Refresh data">
+              <SparklesIcon className="w-4 h-4" />
+            </button>
+          </div>
           <div className="flex gap-1.5">
             {[7, 14, 30].map(d => (
               <button
@@ -107,12 +137,32 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
-        {loading ? (
+        {loadingSymptoms ? (
           <div className="bg-white rounded-2xl border border-gray-100 p-16 text-center">
             <div className="animate-pulse-soft text-gray-400 text-sm">Loading chart data...</div>
           </div>
         ) : (
           <SymptomChart data={data} />
+        )}
+      </div>
+
+      {/* Diet Adherence Chart */}
+      <div className="animate-slide-up" style={{ animationDelay: '400ms' }}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-gray-700">Diet Adherence</h2>
+            <button onClick={() => refetchDiet()} className="p-1 hover:bg-gray-100 rounded-full transition-colors text-gray-400" title="Refresh data">
+              <SparklesIcon className="w-4 h-4" />
+            </button>
+          </div>
+          <span className="text-xs text-gray-400 italic">Updated by your caregiver</span>
+        </div>
+        {loadingDiet ? (
+          <div className="bg-white rounded-2xl border border-gray-100 p-16 text-center">
+            <div className="animate-pulse-soft text-gray-400 text-sm">Loading adherence data...</div>
+          </div>
+        ) : (
+          <DietAdherenceChart data={dietTrends} />
         )}
       </div>
 

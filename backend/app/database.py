@@ -34,12 +34,12 @@ def get_db():
 # --- MongoDB Setup (Documents) ---
 @lru_cache(maxsize=1)
 def get_mongo():
-    """Get MongoDB database instance with a basic in-memory fallback for testing/dev."""
+    """Get MongoDB database instance. Raises an error if connection fails and URI is provided."""
     if not settings.mongodb_uri:
-        # Simple dummy for local dev if Mongo isn't configured
+        # Only use dummy if NO URI is provided at all
+        print("WARNING: No MONGODB_URI provided. Using in-memory DummyMongo.")
         class DummyMongo:
-            def __getitem__(self, name):
-                return self
+            def __getitem__(self, name): return self
             def find(self, *args, **kwargs): return []
             def find_one(self, *args, **kwargs): return None
             def insert_one(self, *args, **kwargs): pass
@@ -52,7 +52,7 @@ def get_mongo():
         client = MongoClient(settings.mongodb_uri, serverSelectionTimeoutMS=5000)
         client.admin.command("ping")
         return client["cancercare"]
-    except Exception:
-        # Fallback to dummy
-        return get_mongo.__wrapped__(None)
+    except Exception as e:
+        print(f"CRITICAL: Failed to connect to MongoDB: {str(e)}")
+        raise e
 

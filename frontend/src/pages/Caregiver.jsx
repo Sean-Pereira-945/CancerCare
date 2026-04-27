@@ -8,7 +8,11 @@ export default function Caregiver() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
   const [email, setEmail] = useState('')
-  const [mealForm, setMealForm] = useState({ type: 'lunch', adhered: true })
+  const [mealForm, setMealForm] = useState({ 
+    type: 'lunch', 
+    adhered: true, 
+    date: new Date().toISOString().split('T')[0] 
+  })
 
   const { data: summary, isLoading: loading } = useQuery({
     queryKey: ['caregiver', 'summary'],
@@ -44,8 +48,8 @@ export default function Caregiver() {
       toast.success('Meal logged!')
       queryClient.invalidateQueries({ queryKey: ['caregiver', 'summary'] })
     },
-    onError: () => {
-      toast.error('Failed to log meal')
+    onError: (err) => {
+      toast.error(err.response?.data?.detail || 'Failed to log meal')
     },
   })
 
@@ -61,8 +65,10 @@ export default function Caregiver() {
 
   const handleLogMeal = (e) => {
     e.preventDefault()
+    // Use the selected date at noon to avoid timezone edge cases
+    const selectedDate = new Date(`${mealForm.date}T12:00:00`)
     logMealMutation.mutate({
-      date: new Date().toISOString(),
+      date: selectedDate.toISOString(),
       meal_type: mealForm.type,
       adhered_to_plan: mealForm.adhered
     })
@@ -191,16 +197,69 @@ export default function Caregiver() {
             )}
           </div>
 
+          {/* Symptom Trends */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <h2 className="text-sm font-semibold text-gray-700 mb-3">Symptom Trends (Last 7 Logs)</h2>
+            {summary.symptom_trends?.length > 0 ? (
+              <div className="space-y-2">
+                {summary.symptom_trends.map((log, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100 text-xs">
+                    <div className="flex flex-col">
+                      <span className="font-semibold text-gray-700">{new Date(log.date).toLocaleDateString()}</span>
+                      <span className="text-gray-400">Mood: {log.mood}/10</span>
+                    </div>
+                    <div className="flex gap-4">
+                      <div className="flex flex-col items-center">
+                        <span className="text-amber-600 font-bold">{log.pain}</span>
+                        <span className="text-[10px] text-gray-400">Pain</span>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <span className="text-blue-600 font-bold">{log.fatigue}</span>
+                        <span className="text-[10px] text-gray-400">Fatigue</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">No symptom logs recorded yet</p>
+            )}
+          </div>
+
+          {/* Medical Reports */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <h2 className="text-sm font-semibold text-gray-700 mb-3">Clinical Reports</h2>
+            {summary.reports?.length > 0 ? (
+              <div className="space-y-3">
+                {summary.reports.map((report, i) => (
+                  <div key={i} className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-bold text-gray-700">{report.filename}</p>
+                      <span className="text-[10px] text-gray-400">{new Date(report.uploaded_at).toLocaleDateString()}</span>
+                    </div>
+                    {report.extracted_fields?.summary && (
+                      <div className="text-xs text-teal-800 bg-teal-50/50 p-3 rounded-lg border border-teal-100/50 leading-relaxed">
+                        <span className="font-bold">AI Summary:</span> {report.extracted_fields.summary}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">No medical reports uploaded by patient</p>
+            )}
+          </div>
+
           {/* Diet Instructions & Adherence */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
             <h2 className="text-sm font-semibold text-gray-700 mb-3">Dietary Instructions & Adherence</h2>
             
-            {summary.diet_instructions && (
+            {summary.diet_instructions?.guidelines && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
                 <div className="bg-green-50 rounded-xl p-4 border border-green-100">
                   <h3 className="text-xs font-bold text-green-800 uppercase tracking-wider mb-2">Recommended (Emphasize)</h3>
                   <ul className="text-sm text-green-700 list-disc pl-4 space-y-1">
-                    {summary.diet_instructions.emphasize?.map((item, idx) => (
+                    {summary.diet_instructions.guidelines.emphasize?.map((item, idx) => (
                       <li key={idx} className="capitalize">{item}</li>
                     ))}
                   </ul>
@@ -208,10 +267,29 @@ export default function Caregiver() {
                 <div className="bg-red-50 rounded-xl p-4 border border-red-100">
                   <h3 className="text-xs font-bold text-red-800 uppercase tracking-wider mb-2">Avoid / Limit</h3>
                   <ul className="text-sm text-red-700 list-disc pl-4 space-y-1">
-                    {summary.diet_instructions.avoid?.map((item, idx) => (
+                    {summary.diet_instructions.guidelines.avoid?.map((item, idx) => (
                       <li key={idx} className="capitalize">{item}</li>
                     ))}
                   </ul>
+                </div>
+              </div>
+            )}
+
+            {summary.diet_instructions?.full_plan && (
+              <div className="mb-6">
+                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">7-Day Meal Schedule</h3>
+                <div className="space-y-3">
+                  {summary.diet_instructions.full_plan.slice(0, 3).map((day, idx) => (
+                    <div key={idx} className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                      <p className="text-[10px] font-bold text-teal-600 mb-1">DAY {day.day}</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                        <div><span className="font-semibold">B:</span> {day.breakfast}</div>
+                        <div><span className="font-semibold">L:</span> {day.lunch}</div>
+                        <div><span className="font-semibold">D:</span> {day.dinner}</div>
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-[10px] text-gray-400 italic text-center">... showing first 3 days of plan ...</p>
                 </div>
               </div>
             )}
@@ -233,6 +311,12 @@ export default function Caregiver() {
             {/* Meal Logging Form */}
             <form onSubmit={handleLogMeal} className="mt-5 p-4 bg-gray-50 rounded-xl border border-gray-100 flex flex-wrap items-center gap-3">
               <span className="text-sm font-semibold text-gray-700">Log Meal:</span>
+              <input 
+                type="date" 
+                value={mealForm.date} 
+                onChange={e => setMealForm({...mealForm, date: e.target.value})}
+                className="text-sm border-gray-200 rounded-lg px-3 py-1.5 focus:ring-teal-500/20 focus:border-teal-500"
+              />
               <select value={mealForm.type} onChange={e => setMealForm({...mealForm, type: e.target.value})} className="text-sm border-gray-200 rounded-lg px-3 py-1.5 focus:ring-teal-500/20 focus:border-teal-500">
                 <option value="breakfast">Breakfast</option>
                 <option value="lunch">Lunch</option>

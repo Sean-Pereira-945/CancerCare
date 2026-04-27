@@ -11,9 +11,16 @@ KNOWLEDGE_BASE_PATH = Path("data/knowledge_base")
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 
+_embeddings = None
+
+
 def get_embeddings():
-    """Load sentence-transformer embedding model (cached by HF)."""
-    return HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
+    """Load sentence-transformer embedding model (cached in memory)."""
+    global _embeddings
+    if _embeddings is None:
+        print(f"Loading embedding model: {EMBEDDING_MODEL}...")
+        _embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
+    return _embeddings
 
 
 def build_knowledge_base():

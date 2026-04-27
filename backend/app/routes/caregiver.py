@@ -3,15 +3,16 @@ from pydantic import BaseModel
 from typing import Optional
 from app.auth.router import get_current_user
 from app.database import get_db
-from app.models.db import User, CaregiverPatient, Medication, MedicationLog, MealLog, DietPlan
+from app.models.db import User, CaregiverPatient, Medication, MedicationLog, MealLog, DietPlan, SymptomLog, Report
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy import and_, desc
 from datetime import datetime, date
+import uuid
 
 router = APIRouter()
 
 class LinkPatientRequest(BaseModel):
-    email: str
+    patient_email: str
 
 class LogMealRequest(BaseModel):
     date: str
@@ -27,29 +28,42 @@ async def link_patient(data: LinkPatientRequest, current_user: dict = Depends(ge
     if current_user.get("role") != "caregiver":
         raise HTTPException(status_code=403, detail="Only caregivers can link to patients")
 
-    # Find patient
-    patient = db.query(User).filter(and_(User.email == data.email, User.role == "patient")).first()
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+    # Find user by email first
+    email_clean = data.patient_email.lower().strip()
+    user = db.query(User).filter(User.email == email_clean).first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail=f"No user found with email: {email_clean}")
+    
+    if user.role != "patient":
+        raise HTTPException(status_code=400, detail=f"User {email_clean} is registered as a {user.role}, not a patient.")
 
+    user_id = uuid.UUID(current_user["sub"])
     # Check if already linked
     existing = db.query(CaregiverPatient).filter(and_(
-        CaregiverPatient.caregiver_id == current_user["sub"],
-        CaregiverPatient.patient_id == patient.id
+        CaregiverPatient.caregiver_id == user_id,
+        CaregiverPatient.patient_id == user.id
     )).first()
     
     if existing:
-        return {"status": "Already linked", "patient_name": patient.name}
+        # Update timestamp to make it the 'latest' link
+        existing.linked_at = datetime.utcnow()
+        db.commit()
+        return {"status": "Already linked", "patient_name": user.name}
 
     # Create link
-    new_link = CaregiverPatient(
-        caregiver_id=current_user["sub"],
-        patient_id=patient.id
-    )
-    db.add(new_link)
-    db.commit()
-
-    return {"status": "Linked successfully", "patient_name": patient.name}
+    try:
+        new_link = CaregiverPatient(
+            caregiver_id=user_id,
+            patient_id=user.id,
+            linked_at=datetime.utcnow()
+        )
+        db.add(new_link)
+        db.commit()
+        return {"status": "Linked successfully", "patient_name": user.name}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Linking failed: {str(e)}")
 
 @router.get("/patient-summary")
 async def get_patient_summary(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -57,10 +71,11 @@ async def get_patient_summary(current_user: dict = Depends(get_current_user), db
     if current_user.get("role") != "caregiver":
         raise HTTPException(status_code=403, detail="Access denied")
 
-    # Get link
-    link = db.query(CaregiverPatient).filter(CaregiverPatient.caregiver_id == current_user["sub"]).first()
+    user_id = uuid.UUID(current_user["sub"])
+    # Get the most recently linked patient
+    link = db.query(CaregiverPatient).filter(CaregiverPatient.caregiver_id == user_id).order_by(desc(CaregiverPatient.linked_at)).first()
     if not link:
-        return {"data": None, "message": "No patient linked"}
+        return {}
 
     patient = db.query(User).filter(User.id == link.patient_id).first()
     
@@ -95,46 +110,78 @@ async def get_patient_summary(current_user: dict = Depends(get_current_user), db
 
     # Get latest diet plan
     latest_plan = db.query(DietPlan).filter(DietPlan.user_id == patient.id).order_by(DietPlan.created_at.desc()).first()
-    diet_instructions = latest_plan.plan_data.get("guidelines") if latest_plan and latest_plan.plan_data else None
+    diet_info = {
+        "guidelines": latest_plan.plan_data.get("guidelines"),
+        "full_plan": latest_plan.plan_data.get("plan")
+    } if latest_plan and latest_plan.plan_data else None
+
+    # Get symptom trends (last 7 days)
+    symptom_logs = db.query(SymptomLog).filter(SymptomLog.user_id == patient.id).order_by(desc(SymptomLog.logged_at)).limit(7).all()
+    symptoms_summary = []
+    for log in symptom_logs:
+        symptoms_summary.append({
+            "date": log.logged_at,
+            "mood": log.mood,
+            "pain": log.symptoms.get("pain", 0) if isinstance(log.symptoms, dict) else 0,
+            "fatigue": log.symptoms.get("fatigue", 0) if isinstance(log.symptoms, dict) else 0
+        })
+
+    # Get reports
+    reports = db.query(Report).filter(Report.user_id == patient.id).order_by(desc(Report.uploaded_at)).all()
+    reports_data = [{
+        "filename": r.filename,
+        "uploaded_at": r.uploaded_at,
+        "extracted_fields": r.extracted_fields
+    } for r in reports]
 
     return {
-        "data": {
-            "patient": {
-                "name": patient.name,
-                "email": patient.email,
-                "cancer_type": patient.cancer_type
-            },
-            "medications": meds_data,
-            "diet_instructions": diet_instructions,
-            "diet_adherence": {
-                "total": total_meals,
-                "adhered": adhered_meals,
-                "percentage": round(adhered_meals / total_meals * 100 if total_meals > 0 else 0, 1)
-            }
+        "patient": {
+            "name": patient.name,
+            "email": patient.email,
+            "cancer_type": patient.cancer_type
+        },
+        "medications": meds_data,
+        "diet_instructions": diet_info,
+        "symptom_trends": symptoms_summary,
+        "reports": reports_data,
+        "diet_adherence": {
+            "total": total_meals,
+            "adhered": adhered_meals,
+            "rate": round(adhered_meals / total_meals * 100 if total_meals > 0 else 0, 1)
         }
     }
 
 @router.post("/log-meal")
 async def log_patient_meal(data: LogMealRequest, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     """Caregiver logs a meal for the patient."""
-    link = db.query(CaregiverPatient).filter(CaregiverPatient.caregiver_id == current_user["sub"]).first()
+    user_id = uuid.UUID(current_user["sub"])
+    # Always use the most recent link
+    link = db.query(CaregiverPatient).filter(CaregiverPatient.caregiver_id == user_id).order_by(desc(CaregiverPatient.linked_at)).first()
     if not link:
-        raise HTTPException(status_code=404, detail="No linked patient found")
+        raise HTTPException(status_code=404, detail="No linked patient found. Please link to a patient first.")
 
-    new_log = MealLog(
-        user_id=link.patient_id,
-        date=datetime.fromisoformat(data.date.replace('Z', '')),
-        meal_type=data.meal_type,
-        adhered_to_plan=data.adhered_to_plan
-    )
-    db.add(new_log)
-    db.commit()
-    return {"status": "Meal logged"}
+    try:
+        # Better date parsing
+        print(f"DEBUG: Incoming meal date: {data.date}")
+        clean_date = data.date.replace('Z', '').split('.')[0] # Remove milliseconds and Z
+        new_log = MealLog(
+            user_id=link.patient_id,
+            date=datetime.fromisoformat(clean_date),
+            meal_type=data.meal_type,
+            adhered_to_plan=data.adhered_to_plan
+        )
+        db.add(new_log)
+        db.commit()
+        return {"status": "Meal logged"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 @router.post("/log-medication")
 async def log_patient_medication(data: LogMedicationRequest, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     """Caregiver marks a patient's medication as taken."""
-    link = db.query(CaregiverPatient).filter(CaregiverPatient.caregiver_id == current_user["sub"]).first()
+    user_id = uuid.UUID(current_user["sub"])
+    link = db.query(CaregiverPatient).filter(CaregiverPatient.caregiver_id == user_id).order_by(desc(CaregiverPatient.linked_at)).first()
     if not link:
         raise HTTPException(status_code=404, detail="No linked patient found")
 
@@ -143,11 +190,16 @@ async def log_patient_medication(data: LogMedicationRequest, current_user: dict 
     if not med:
         raise HTTPException(status_code=404, detail="Medication not found for this patient")
 
-    new_log = MedicationLog(
-        user_id=link.patient_id,
-        medication_id=data.medication_id,
-        status="taken"
-    )
-    db.add(new_log)
-    db.commit()
-    return {"status": "Medication logged"}
+    try:
+        new_log = MedicationLog(
+            user_id=link.patient_id,
+            medication_id=data.medication_id,
+            status="taken",
+            taken_at=datetime.utcnow()
+        )
+        db.add(new_log)
+        db.commit()
+        return {"status": "Medication logged"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))

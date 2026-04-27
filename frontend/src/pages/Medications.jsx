@@ -48,6 +48,16 @@ export default function Medications() {
     }
   }
 
+  const handleLog = async (id) => {
+    try {
+      await medsAPI.log({ medication_id: id })
+      toast.success('Medication intake logged!')
+      loadMeds()
+    } catch {
+      toast.error('Failed to log intake')
+    }
+  }
+
   const deleteMed = async (id) => {
     try {
       await medsAPI.delete(id)
@@ -143,6 +153,17 @@ export default function Medications() {
                 {med.notes && <p className="text-xs text-gray-400 italic mt-0.5">{med.notes}</p>}
               </div>
               <div className="flex gap-2">
+                {med.active && !med.taken_today && (
+                  <button onClick={() => handleLog(med.id)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-teal-50 text-teal-600 hover:bg-teal-100 transition-colors">
+                    Log
+                  </button>
+                )}
+                {med.taken_today && (
+                  <span className="text-xs text-green-600 bg-green-50 px-2.5 py-1.5 rounded-lg border border-green-100 flex items-center gap-1">
+                    ✓ Taken
+                  </span>
+                )}
                 <button onClick={() => toggleActive(med.id, med.active)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                     med.active ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-green-50 text-green-600 hover:bg-green-100'
