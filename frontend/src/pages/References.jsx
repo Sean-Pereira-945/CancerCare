@@ -1,4 +1,4 @@
-import { trialsAPI } from '../lib/api'
+import { referencesAPI } from '../lib/api'
 import { useQuery } from '@tanstack/react-query'
 
 export default function References() {
@@ -6,7 +6,7 @@ export default function References() {
 
   const { data: docs = [], isLoading: loading } = useQuery({
     queryKey: ['references'],
-    queryFn: () => trialsAPI.getReferences().then(res => res.data.documents || []),
+    queryFn: () => referencesAPI.getReferences().then(res => res.data.documents || []),
   })
 
   return (

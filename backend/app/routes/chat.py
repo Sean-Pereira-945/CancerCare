@@ -4,9 +4,14 @@ from typing import List, Optional
 from groq import Groq
 from app.config import get_settings
 from app.auth.router import get_current_user
+from app.database import get_db
 from app.ml.rag_pipeline import load_vectorstore, get_embeddings
+from app.models.db import Report
 from pathlib import Path
 from langchain_community.vectorstores import FAISS
+from sqlalchemy.orm import Session
+from sqlalchemy import desc
+import uuid
 
 router = APIRouter()
 settings = get_settings()
@@ -100,8 +105,55 @@ class ChatRequest(BaseModel):
     include_retrieval_debug: Optional[bool] = False
 
 
+def _build_report_fallback_context(db: Session, user_id: str) -> tuple[list[str], int]:
+    """Build a compact patient-report context from the latest uploaded reports."""
+    try:
+        report_rows = (
+            db.query(Report)
+            .filter(Report.user_id == uuid.UUID(user_id))
+            .order_by(desc(Report.uploaded_at))
+            .limit(2)
+            .all()
+        )
+    except Exception:
+        return [], 0
+
+    context_parts = []
+    for report in report_rows:
+        extracted = report.extracted_fields or {}
+        summary = extracted.get("summary")
+        recovery_status = extracted.get("recovery_status")
+
+        block = [f"Report filename: {report.filename}"]
+        if recovery_status:
+            block.append(f"Recovery status: {recovery_status}")
+        if summary:
+            block.append(f"Clinical summary: {summary}")
+
+        structured_fields = [
+            f"{key.replace('_', ' ')}: {value}"
+            for key, value in extracted.items()
+            if key not in {"summary", "recovery_status", "key_metrics"} and value
+        ]
+        if structured_fields:
+            block.append("Extracted findings:")
+            block.extend(structured_fields[:12])
+
+        if report.raw_text:
+            block.append("Report text excerpt:")
+            block.append(report.raw_text[:2000])
+
+        context_parts.append("\n".join(block))
+
+    return context_parts, len(report_rows)
+
+
 @router.post("/message")
-async def chat(request: ChatRequest, current_user: dict = Depends(get_current_user)):
+async def chat(
+    request: ChatRequest,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """Send a message to the RAG-powered chatbot. Uses Groq (Llama 3.1 70B) for fast inference."""
     user_id = current_user["sub"]
 
@@ -127,6 +179,8 @@ async def chat(request: ChatRequest, current_user: dict = Depends(get_current_us
     user_store_path = Path(f"data/vector_store/user_{user_id}")
     user_scores = []
     user_pairs = []
+    report_fallback_contexts = []
+    report_rows_used = 0
     if exp_config.use_patient_retrieval and user_store_path.exists():
         try:
             embeddings = get_embeddings()
@@ -137,11 +191,17 @@ async def chat(request: ChatRequest, current_user: dict = Depends(get_current_us
         except Exception:
             pass
 
+    if exp_config.use_patient_retrieval and not user_docs:
+        report_fallback_contexts, report_rows_used = _build_report_fallback_context(db, user_id)
+
     # Build context from retrieved documents
     context_parts = []
     if user_docs:
         context_parts.append("=== YOUR MEDICAL REPORT ===")
         context_parts.extend([d.page_content for d in user_docs])
+    elif report_fallback_contexts:
+        context_parts.append("=== YOUR LATEST UPLOADED REPORTS ===")
+        context_parts.extend(report_fallback_contexts)
     if global_docs:
         context_parts.append("=== MEDICAL KNOWLEDGE BASE ===")
         context_parts.extend([d.page_content for d in global_docs])
@@ -164,6 +224,7 @@ async def chat(request: ChatRequest, current_user: dict = Depends(get_current_us
                     "user_scores": user_scores,
                     "global_docs": len(global_docs),
                     "user_docs": len(user_docs),
+                    "report_rows_used": report_rows_used,
                 }
             return out
 
@@ -191,6 +252,7 @@ async def chat(request: ChatRequest, current_user: dict = Depends(get_current_us
                 "user_scores": user_scores,
                 "global_docs": len(global_docs),
                 "user_docs": len(user_docs),
+                "report_rows_used": report_rows_used,
             }
         return out
 
@@ -224,6 +286,7 @@ async def chat(request: ChatRequest, current_user: dict = Depends(get_current_us
             "user_scores": user_scores,
             "global_docs": len(global_docs),
             "user_docs": len(user_docs),
+            "report_rows_used": report_rows_used,
             "top_global_confidence": _score_to_confidence(global_scores[0]) if global_scores else 0.0,
             "top_user_confidence": _score_to_confidence(user_scores[0]) if user_scores else 0.0,
         }

@@ -45,7 +45,7 @@ app.include_router(diet.router, prefix="/api/diet", tags=["Diet"])
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(symptoms.router, prefix="/api/symptoms", tags=["Symptoms"])
 app.include_router(medications.router, prefix="/api/medications", tags=["Medications"])
-app.include_router(trials.router, prefix="/api/trials", tags=["Clinical Trials"])
+app.include_router(trials.router, prefix="/api/trials", tags=["References"])
 app.include_router(caregiver.router, prefix="/api/caregiver", tags=["Caregiver"])
 
 

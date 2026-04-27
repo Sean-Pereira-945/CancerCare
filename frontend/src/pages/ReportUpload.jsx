@@ -153,7 +153,7 @@ export default function ReportUpload() {
                     {report.page_count && ` · ${report.page_count} pages`}
                   </p>
                   {report.extracted_fields?.summary && (
-                    <p className="text-xs text-gray-500 mt-2 line-clamp-2 italic bg-white/50 p-2 rounded-lg border border-gray-100">
+                    <p className="text-xs text-gray-500 mt-2 italic bg-white/50 p-2 rounded-lg border border-gray-100 whitespace-normal break-words leading-relaxed">
                       "{report.extracted_fields.summary}"
                     </p>
                   )}

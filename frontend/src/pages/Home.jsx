@@ -4,7 +4,6 @@ import {
   DocumentTextIcon,
   HeartIcon,
   SparklesIcon,
-  MagnifyingGlassCircleIcon,
   ShieldCheckIcon,
   LockClosedIcon,
   UserGroupIcon,
@@ -31,11 +30,6 @@ export default function Home() {
       title: 'Symptom Tracking',
       desc: 'Log symptoms over time and surface trends that help with more informed consultations.',
       icon: HeartIcon,
-    },
-    {
-      title: 'Trial Discovery',
-      desc: 'Search active studies by cancer type and review key trial details quickly.',
-      icon: MagnifyingGlassCircleIcon,
     },
   ]
 
@@ -139,4 +133,3 @@ export default function Home() {
     </div>
   )
 }
-

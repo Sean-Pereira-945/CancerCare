@@ -13,7 +13,6 @@ import SymptomTracker from './pages/SymptomTracker'
 import DietPlan from './pages/DietPlan'
 import ReportUpload from './pages/ReportUpload'
 import Medications from './pages/Medications'
-import ClinicalTrials from './pages/ClinicalTrials'
 import References from './pages/References'
 import Caregiver from './pages/Caregiver'
 
@@ -44,7 +43,6 @@ function AppLayout() {
           <Route path="/diet" element={<ProtectedRoute><DietPlan /></ProtectedRoute>} />
           <Route path="/reports" element={<ProtectedRoute><ReportUpload /></ProtectedRoute>} />
           <Route path="/medications" element={<ProtectedRoute><Medications /></ProtectedRoute>} />
-          <Route path="/trials" element={<ProtectedRoute><ClinicalTrials /></ProtectedRoute>} />
           <Route path="/references" element={<ProtectedRoute><References /></ProtectedRoute>} />
           <Route path="/caregiver" element={<ProtectedRoute><Caregiver /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/dashboard" />} />

@@ -4,6 +4,26 @@ import MedicalDisclaimer from '../components/MedicalDisclaimer'
 import toast from 'react-hot-toast'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+
+function normalizeMealPlan(fullPlan) {
+  if (!fullPlan) return []
+
+  if (Array.isArray(fullPlan)) {
+    return fullPlan
+  }
+
+  if (typeof fullPlan === 'object') {
+    return Object.entries(fullPlan).map(([dayKey, meals]) => ({
+      day: String(dayKey).replace(/^day_?/i, ''),
+      breakfast: meals?.breakfast?.meal || meals?.breakfast || 'Not provided',
+      lunch: meals?.lunch?.meal || meals?.lunch || 'Not provided',
+      dinner: meals?.dinner?.meal || meals?.dinner || 'Not provided',
+    }))
+  }
+
+  return []
+}
+
 export default function Caregiver() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
@@ -76,6 +96,7 @@ export default function Caregiver() {
 
   const linking = linkMutation.isPending
   const loggingMeal = logMealMutation.isPending
+  const dietPlanDays = normalizeMealPlan(summary?.diet_instructions?.full_plan)
 
   if (user?.role !== 'caregiver') {
     return (
@@ -275,11 +296,11 @@ export default function Caregiver() {
               </div>
             )}
 
-            {summary.diet_instructions?.full_plan && (
+            {dietPlanDays.length > 0 && (
               <div className="mb-6">
                 <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">7-Day Meal Schedule</h3>
                 <div className="space-y-3">
-                  {summary.diet_instructions.full_plan.slice(0, 3).map((day, idx) => (
+                  {dietPlanDays.map((day, idx) => (
                     <div key={idx} className="p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <p className="text-[10px] font-bold text-teal-600 mb-1">DAY {day.day}</p>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
@@ -289,7 +310,6 @@ export default function Caregiver() {
                       </div>
                     </div>
                   ))}
-                  <p className="text-[10px] text-gray-400 italic text-center">... showing first 3 days of plan ...</p>
                 </div>
               </div>
             )}

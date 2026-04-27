@@ -8,7 +8,6 @@ import {
   SparklesIcon,
   DocumentTextIcon,
   BeakerIcon,
-  MagnifyingGlassCircleIcon,
   UserGroupIcon,
   Bars3Icon,
   XMarkIcon,
@@ -22,7 +21,6 @@ const navItems = [
   { path: '/diet', label: 'Diet Plan', icon: SparklesIcon },
   { path: '/reports', label: 'Reports', icon: DocumentTextIcon },
   { path: '/medications', label: 'Medications', icon: BeakerIcon },
-  { path: '/trials', label: 'Clinical Trials', icon: MagnifyingGlassCircleIcon },
   { path: '/references', label: 'References', icon: BookOpenIcon },
   { path: '/caregiver', label: 'Caregiver', icon: UserGroupIcon },
 ]

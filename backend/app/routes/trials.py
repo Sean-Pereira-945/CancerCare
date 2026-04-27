@@ -4,56 +4,9 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from app.auth.router import get_current_user
-import httpx
 
 router = APIRouter()
 KNOWLEDGE_BASE_DIR = Path("data/knowledge_base").resolve()
-
-
-@router.get("/search")
-async def search_trials(
-    cancer_type: str = "",
-    status: str = "RECRUITING",
-    current_user: dict = Depends(get_current_user)
-):
-    """Search ClinicalTrials.gov API v2 for relevant clinical trials."""
-    async with httpx.AsyncClient() as client:
-        try:
-            # We use query.term for broader matching on cancer types
-            r = await client.get(
-                "https://clinicaltrials.gov/api/v2/studies",
-                params={
-                    "query.term": f"{cancer_type} cancer",
-                    "filter.overallStatus": status,
-                    "pageSize": 10
-                },
-                timeout=15.0
-            )
-        except Exception as e:
-            return {"trials": [], "error": f"Connection error: {str(e)}", "total": 0}
-
-    if r.status_code != 200:
-        return {"trials": [], "error": f"External API Error: {r.status_code}", "total": 0}
-
-    data = r.json()
-    trials_raw = data.get("studies", [])
-    trials_extracted = []
-
-    for study in trials_raw:
-        proto = study.get("protocolSection", {})
-        ident = proto.get("identificationModule", {})
-        design = proto.get("designModule", {})
-        desc = proto.get("descriptionModule", {})
-        
-        trials_extracted.append({
-            "id": ident.get("nctId"),
-            "title": ident.get("briefTitle"),
-            "phase": design.get("phases", ["N/A"]),
-            "summary": desc.get("briefSummary", "No summary available.")[:300] + "...",
-            "status": proto.get("statusModule", {}).get("overallStatus")
-        })
-
-    return {"trials": trials_extracted, "total": data.get("totalCount", 0)}
 
 
 @router.get("/references")

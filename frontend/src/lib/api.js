@@ -68,9 +68,8 @@ export const medsAPI = {
   log: (data) => api.post('/medications/log', data),
 }
 
-// Clinical Trials API
-export const trialsAPI = {
-  searchTrials: (cancerType) => api.get(`/trials/search?cancer_type=${cancerType}`),
+// Knowledge Base References API
+export const referencesAPI = {
   getReferences: () => api.get('/trials/references'),
 }
 
