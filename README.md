@@ -10,7 +10,6 @@ CancerCare AI is a full-stack oncology support platform with a React frontend, a
 - Symptom logging and dashboard trend visualization
 - Medication tracking and daily intake logging
 - Caregiver-to-patient linking with role-aware summaries and actions
-- Clinical trial search through the ClinicalTrials.gov API
 - JWT authentication for protected routes
 
 ## Repository Structure
