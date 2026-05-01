@@ -17,15 +17,13 @@ htmlcov/
 
 # Environment variables - NEVER commit
 .env
-.env.local
-.env.production
+.env.*
+!.env.example
 
 # ML models and data (too large for Git)
 backend/models/*.pkl
 backend/data/vector_store/
-backend/data/knowledge_base/*.pdf
-backend/data/knowledge_base/*.faiss
-backend/data/knowledge_base/*.index
+backend/data/knowledge_base/
 
 # Local app data
 data/user_reports/
@@ -34,8 +32,6 @@ vector_store/
 backend/data/user_reports/
 backend/cancercare.db
 backend/run_output.txt
-commands.txt
-CONTEXT.md
 scratch/
 
 # Node.js
@@ -54,30 +50,7 @@ Thumbs.db
 .vscode/settings.json
 .idea/
 
-# Temp files & Media
-_doc_content.txt
-.dist/
-demo.mp4
-ner_test_output.txt
-_ner_test.txt
-_pytest_out.txt
-_startup_test.txt
-
 # Logs and local run artifacts
 *.log
 *.tmp
 *.bak
-
-# Research artifacts
-research/experiment_failures.jsonl
-research/experiment_quality_report.json
-research/experiment_raw_data.json
-research/experiment_raw_data.*.json
-research/slice_analysis_*.json
-research/statistical_results.txt
-
-# Local debug/utility scripts
-backend/check_*.py
-backend/debug_*.py
-backend/test_*.py
-backend/reset_password.py

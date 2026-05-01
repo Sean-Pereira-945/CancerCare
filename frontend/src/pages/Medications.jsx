@@ -11,17 +11,20 @@ export default function Medications() {
     name: '', dosage: '', frequency: '', times: [], notes: ''
   })
 
-  useEffect(() => {
-    loadMeds()
-  }, [])
-
   const loadMeds = async () => {
     try {
       const { data } = await medsAPI.list()
       setMedications(data.medications || [])
-    } catch {}
-    setLoading(false)
+    } catch {
+      toast.error('Failed to load medications')
+    } finally {
+      setLoading(false)
+    }
   }
+
+  useEffect(() => {
+    loadMeds()
+  }, [])
 
   const update = (field, value) => setForm(prev => ({ ...prev, [field]: value }))
 

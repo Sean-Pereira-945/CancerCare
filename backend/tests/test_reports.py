@@ -9,7 +9,7 @@ client = TestClient(app)
 
 
 def _mock_user():
-    return {"sub": "user-123", "role": "patient"}
+    return {"sub": "02197246-fc3f-4177-84ad-612d1beb780d", "role": "patient"}
 
 
 class _MockCollection:
@@ -39,18 +39,19 @@ def test_upload_report_rejects_non_pdf():
 
 
 def test_upload_report_pdf_success(monkeypatch):
+    called = []
+
     monkeypatch.setattr(
         reports_routes,
         "parse_report",
-        lambda _bytes: {
+        lambda _bytes, **_kwargs: {
             "raw_text": "raw",
             "full_text": "full",
             "extracted_fields": {"cancer_type": "breast"},
             "page_count": 1,
         },
     )
-    monkeypatch.setattr(reports_routes, "add_patient_report", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(reports_routes, "get_mongo", lambda: _MockMongo())
+    monkeypatch.setattr(reports_routes, "add_patient_report", lambda *args, **kwargs: called.append((args, kwargs)))
 
     app.dependency_overrides[get_current_user] = _mock_user
     try:
@@ -62,5 +63,6 @@ def test_upload_report_pdf_success(monkeypatch):
         body = response.json()
         assert body.get("status") == "Report uploaded and indexed"
         assert "extracted" in body
+        assert called, "expected report indexing background task to be queued"
     finally:
         app.dependency_overrides.clear()

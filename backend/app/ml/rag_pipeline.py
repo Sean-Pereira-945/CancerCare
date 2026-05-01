@@ -1,13 +1,13 @@
-import os
 from pathlib import Path
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.document_loaders import PyMuPDFLoader, DirectoryLoader
 from langchain_core.documents import Document
 
-VECTOR_STORE_PATH = Path("data/vector_store")
-KNOWLEDGE_BASE_PATH = Path("data/knowledge_base")
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+VECTOR_STORE_PATH = BACKEND_DIR / "data/vector_store"
+KNOWLEDGE_BASE_PATH = BACKEND_DIR / "data/knowledge_base"
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 

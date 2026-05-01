@@ -6,7 +6,7 @@ from app.database import get_db
 from app.models.db import Medication, MedicationLog
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 router = APIRouter()
@@ -49,7 +49,7 @@ async def get_medications(current_user: dict = Depends(get_current_user), db: Se
     meds = db.query(Medication).filter(Medication.user_id == user_id).all()
     
     # Check today's logs
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     
     results = []
     for m in meds:
@@ -112,7 +112,7 @@ async def log_medication(data: LogMedicationRequest, current_user: dict = Depend
         user_id=current_user["sub"],
         medication_id=data.medication_id,
         status="taken",
-        taken_at=datetime.utcnow()
+        taken_at=datetime.now(timezone.utc)
     )
     db.add(new_log)
     db.commit()

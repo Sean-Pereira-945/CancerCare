@@ -10,7 +10,7 @@ client = TestClient(app)
 
 
 def _mock_user():
-    return {"sub": "user-123", "role": "patient"}
+    return {"sub": "02197246-fc3f-4177-84ad-612d1beb780d", "role": "patient"}
 
 
 class _MockDB:

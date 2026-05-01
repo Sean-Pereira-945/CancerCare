@@ -1,5 +1,5 @@
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, BackgroundTasks
@@ -8,14 +8,31 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc, and_
 
 from app.auth.router import get_current_user
-from app.ml.report_parser import parse_report
-from app.ml.rag_pipeline import add_patient_report
+from app.ml.report_parser import parse_report, analyze_with_llm
+from app.ml.rag_pipeline import add_patient_report, BACKEND_DIR
 from app.ml.risk_model import predict_risk
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.models.db import Report
 
 router = APIRouter()
-USER_REPORTS_DIR = Path("data/user_reports")
+USER_REPORTS_DIR = BACKEND_DIR / "data/user_reports"
+
+
+def _run_ai_analysis(report_id: uuid.UUID, combined_text: str) -> None:
+    """Background task: run LLM analysis and update report record."""
+    db = SessionLocal()
+    try:
+        report = db.query(Report).filter(Report.id == report_id).first()
+        if not report:
+            return
+
+        ai_analysis = analyze_with_llm(combined_text)
+        extracted = report.extracted_fields or {}
+        extracted.update(ai_analysis)
+        report.extracted_fields = extracted
+        db.commit()
+    finally:
+        db.close()
 
 
 @router.post("/upload")
@@ -23,7 +40,7 @@ async def upload_report(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
-    background_tasks: BackgroundTasks = BackgroundTasks()
+    background_tasks: BackgroundTasks = None,
 ):
     """Upload a medical report PDF. Parses it, extracts key fields, and indexes for RAG."""
     if file.content_type != "application/pdf":
@@ -37,15 +54,25 @@ async def upload_report(
     user_dir = USER_REPORTS_DIR / f"user_{user_id_str}"
     user_dir.mkdir(parents=True, exist_ok=True)
     safe_filename = Path(file.filename or "report.pdf").name
-    stamped_filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{safe_filename}"
+    stamped_filename = f"{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}_{safe_filename}"
     stored_path = (user_dir / stamped_filename).resolve()
     stored_path.write_bytes(file_bytes)
 
     # Parse the report
-    parsed = parse_report(file_bytes)
+    include_ai = background_tasks is None
+    parsed = parse_report(file_bytes, include_ai=include_ai, include_tables=False)
+
+    if not include_ai:
+        parsed["extracted_fields"].setdefault("recovery_status", "Processing")
+        parsed["extracted_fields"].setdefault("overall_signal", "Processing")
+        parsed["extracted_fields"].setdefault(
+            "signal_evidence",
+            ["Report is being analyzed. Refresh in a minute for results."]
+        )
 
     # Add to user's vector store for RAG (background)
-    background_tasks.add_task(add_patient_report, user_id_str, parsed["full_text"])
+    if background_tasks is not None:
+        background_tasks.add_task(add_patient_report, user_id_str, parsed["full_text"])
 
     # Attempt to get a risk score
     risk_assessment = None
@@ -71,8 +98,11 @@ async def upload_report(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save report to database: {str(e)}")
 
+    if background_tasks is not None:
+        background_tasks.add_task(_run_ai_analysis, new_report.id, parsed["full_text"])
+
     return {
-        "status": "Report uploaded and processing in background",
+        "status": "Report uploaded and indexed",
         "id": str(new_report.id),
         "extracted": parsed["extracted_fields"],
         "risk_assessment": risk_assessment,

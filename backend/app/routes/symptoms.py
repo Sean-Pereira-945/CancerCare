@@ -6,7 +6,7 @@ from app.database import get_db
 from app.models.db import SymptomLog
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 router = APIRouter()
@@ -24,11 +24,11 @@ class SymptomLogCreate(BaseModel):
 
 def _parse_logged_at(date_str: Optional[str]) -> datetime:
     if not date_str:
-        return datetime.utcnow()
+        return datetime.now(timezone.utc)
 
     normalized = date_str.strip()
     if not normalized:
-        return datetime.utcnow()
+        return datetime.now(timezone.utc)
 
     if "T" in normalized:
         return datetime.fromisoformat(normalized.replace("Z", ""))

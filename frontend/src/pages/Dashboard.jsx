@@ -39,7 +39,6 @@ export default function Dashboard() {
   ]
 
   // Calculate summary stats from trend data
-  const latestLog = data.length > 0 ? data[data.length - 1] : null
   const avgMood = data.length > 0 ? (data.reduce((sum, d) => sum + (d.mood || 0), 0) / data.length).toFixed(1) : '--'
   const avgPain = data.length > 0 ? (data.reduce((sum, d) => sum + (d.pain || 0), 0) / data.length).toFixed(1) : '--'
 

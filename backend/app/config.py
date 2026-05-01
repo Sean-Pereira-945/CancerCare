@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 from typing import Optional
 from pathlib import Path
@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     neon_postgres_url: str = ""
     mongodb_uri: str = ""
     upstash_redis_url: str = ""
+    mongodb_strict: bool = False
 
     # Auth
     jwt_secret: str = "cancercare-dev-secret-change-in-production"
@@ -34,10 +35,11 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:5173"
     auto_create_tables: bool = True
 
-    class Config:
-        env_file = (PROJECT_ROOT / ".env", BACKEND_DIR / ".env")
-        env_file_encoding = "utf-8"
-        extra = "ignore"
+    model_config = SettingsConfigDict(
+        env_file=(PROJECT_ROOT / ".env", BACKEND_DIR / ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
 
 @lru_cache()

@@ -1,12 +1,10 @@
 import { useState } from 'react'
 import { reportsAPI } from '../lib/api'
 import MedicalDisclaimer from '../components/MedicalDisclaimer'
-import { useAuth } from '../hooks/useAuth'
 import toast from 'react-hot-toast'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 
 export default function ReportUpload() {
-  const { user } = useAuth()
   const queryClient = useQueryClient()
   const [file, setFile] = useState(null)
 
@@ -74,7 +72,7 @@ export default function ReportUpload() {
       </form>
 
       {/* Extracted Information Section - Only show if data exists */}
-      {uploadMutation.data && (uploadMutation.data.extracted?.summary || Object.keys(uploadMutation.data.extracted || {}).filter(k => k !== 'summary' && k !== 'recovery_status' && k !== 'key_metrics').length > 0) && (
+      {uploadMutation.data && (uploadMutation.data.extracted?.summary || uploadMutation.data.extracted?.overall_signal || Object.keys(uploadMutation.data.extracted || {}).filter(k => k !== 'summary' && k !== 'recovery_status' && k !== 'key_metrics' && k !== 'overall_signal' && k !== 'signal_evidence' && k !== 'table_highlights' && k !== 'table_excerpt').length > 0) && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 animate-fade-in">
           {/* Risk Assessment */}
           {uploadMutation.data.risk_assessment && !uploadMutation.data.risk_assessment.error && (
@@ -106,14 +104,41 @@ export default function ReportUpload() {
             </div>
           )}
 
-          {uploadMutation.data.extracted && Object.keys(uploadMutation.data.extracted).filter(k => k !== 'summary' && k !== 'recovery_status' && k !== 'key_metrics').length > 0 && (
+          {uploadMutation.data.extracted?.overall_signal && (
+            <div className="mb-6 bg-white rounded-2xl border border-teal-100 p-5">
+              <span className="text-[10px] font-bold text-teal-600 uppercase tracking-widest">Overall Signal</span>
+              <p className="text-lg font-bold text-teal-800 mt-1">{uploadMutation.data.extracted.overall_signal}</p>
+              {Array.isArray(uploadMutation.data.extracted.signal_evidence) && uploadMutation.data.extracted.signal_evidence.length > 0 && (
+                <ul className="mt-3 text-sm text-teal-900 space-y-1 list-disc ml-5">
+                  {uploadMutation.data.extracted.signal_evidence.slice(0, 6).map((item, idx) => (
+                    <li key={idx}>{item}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {Array.isArray(uploadMutation.data.extracted?.table_highlights) && uploadMutation.data.extracted.table_highlights.length > 0 && (
+            <div className="mb-6 bg-gray-50 rounded-2xl border border-gray-100 p-5">
+              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Table Highlights</span>
+              <ul className="mt-3 text-sm text-gray-700 space-y-1 list-disc ml-5">
+                {uploadMutation.data.extracted.table_highlights.slice(0, 6).map((item, idx) => (
+                  <li key={idx}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {uploadMutation.data.extracted && Object.keys(uploadMutation.data.extracted).filter(k => k !== 'summary' && k !== 'recovery_status' && k !== 'key_metrics' && k !== 'overall_signal' && k !== 'signal_evidence' && k !== 'table_highlights' && k !== 'table_excerpt').length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {Object.entries(uploadMutation.data.extracted)
-                .filter(([key]) => key !== 'summary' && key !== 'recovery_status' && key !== 'key_metrics')
+                .filter(([key]) => key !== 'summary' && key !== 'recovery_status' && key !== 'key_metrics' && key !== 'overall_signal' && key !== 'signal_evidence' && key !== 'table_highlights' && key !== 'table_excerpt')
                 .map(([key, value]) => (
                 <div key={key} className="bg-gray-50 rounded-xl p-3">
                   <span className="text-xs text-gray-400 font-medium capitalize">{key.replace('_', ' ')}</span>
-                  <p className="text-sm text-gray-700 font-medium mt-0.5">{value}</p>
+                  <p className="text-sm text-gray-700 font-medium mt-0.5">
+                    {Array.isArray(value) ? value.join(', ') : value}
+                  </p>
                 </div>
               ))}
             </div>
@@ -145,6 +170,11 @@ export default function ReportUpload() {
                     {report.extracted_fields?.recovery_status && (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-600 border border-teal-100 uppercase">
                         {report.extracted_fields.recovery_status}
+                      </span>
+                    )}
+                    {report.extracted_fields?.overall_signal && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-100 uppercase">
+                        {report.extracted_fields.overall_signal}
                       </span>
                     )}
                   </div>

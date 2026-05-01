@@ -6,7 +6,7 @@ from app.database import get_db
 from app.models.db import User, CaregiverPatient, Medication, MedicationLog, MealLog, DietPlan, SymptomLog, Report
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 import uuid
 
 router = APIRouter()
@@ -47,7 +47,7 @@ async def link_patient(data: LinkPatientRequest, current_user: dict = Depends(ge
     
     if existing:
         # Update timestamp to make it the 'latest' link
-        existing.linked_at = datetime.utcnow()
+        existing.linked_at = datetime.now(timezone.utc)
         db.commit()
         return {"status": "Already linked", "patient_name": user.name}
 
@@ -56,7 +56,7 @@ async def link_patient(data: LinkPatientRequest, current_user: dict = Depends(ge
         new_link = CaregiverPatient(
             caregiver_id=user_id,
             patient_id=user.id,
-            linked_at=datetime.utcnow()
+            linked_at=datetime.now(timezone.utc)
         )
         db.add(new_link)
         db.commit()
@@ -83,7 +83,7 @@ async def get_patient_summary(current_user: dict = Depends(get_current_user), db
     meds = db.query(Medication).filter(Medication.user_id == patient.id).all()
     
     # Check today's logs for each medication
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     
     meds_data = []
     for m in meds:
@@ -195,7 +195,7 @@ async def log_patient_medication(data: LogMedicationRequest, current_user: dict 
             user_id=link.patient_id,
             medication_id=data.medication_id,
             status="taken",
-            taken_at=datetime.utcnow()
+            taken_at=datetime.now(timezone.utc)
         )
         db.add(new_log)
         db.commit()

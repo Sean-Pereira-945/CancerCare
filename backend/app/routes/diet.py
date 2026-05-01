@@ -40,7 +40,7 @@ def _as_clean_list(value) -> List[str]:
 @router.post("/generate-plan")
 async def generate_plan(request: DietPlanRequest, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     """Generate a personalized 7-day diet plan using Gemini AI."""
-    payload = request.dict()
+    payload = request.model_dump()
     restrictions_list = _as_clean_list(payload.get("restrictions"))
     preferences_list = _as_clean_list(payload.get("preferences"))
     symptoms_list = _as_clean_list(payload.get("symptoms"))
