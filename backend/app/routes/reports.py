@@ -17,6 +17,18 @@ from app.models.db import Report
 router = APIRouter()
 USER_REPORTS_DIR = BACKEND_DIR / "data/user_reports"
 
+def _summary_needs_regen(summary: str | None) -> bool:
+    if not summary:
+        return True
+    summary_lower = summary.lower()
+    fallback_markers = [
+        "diagnosis:",
+        "stage ",
+        "planned treatment:",
+        "medications:",
+    ]
+    return any(marker in summary_lower for marker in fallback_markers)
+
 
 def _run_ai_analysis(report_id: uuid.UUID, combined_text: str) -> None:
     """Background task: run LLM analysis and update report record."""
@@ -28,7 +40,10 @@ def _run_ai_analysis(report_id: uuid.UUID, combined_text: str) -> None:
 
         ai_analysis = analyze_with_llm(combined_text)
         extracted = report.extracted_fields or {}
-        extracted.update(ai_analysis)
+        for key, value in ai_analysis.items():
+            if value in {None, "", "Unknown", "AI analysis unavailable", "Failed to analyze with AI"}:
+                continue
+            extracted[key] = value
         report.extracted_fields = extracted
         db.commit()
     finally:
@@ -59,16 +74,10 @@ async def upload_report(
     stored_path.write_bytes(file_bytes)
 
     # Parse the report
-    include_ai = background_tasks is None
-    parsed = parse_report(file_bytes, include_ai=include_ai, include_tables=False)
-
-    if not include_ai:
-        parsed["extracted_fields"].setdefault("recovery_status", "Processing")
-        parsed["extracted_fields"].setdefault("overall_signal", "Processing")
-        parsed["extracted_fields"].setdefault(
-            "signal_evidence",
-            ["Report is being analyzed. Refresh in a minute for results."]
-        )
+    parsed = parse_report(file_bytes, include_ai=True, include_tables=False)
+    summary = parsed["extracted_fields"].get("summary")
+    if not summary or summary in {"AI analysis unavailable", "Failed to analyze with AI"}:
+        raise HTTPException(status_code=502, detail="Groq analysis failed. Check GROQ_API_KEY and try again.")
 
     # Add to user's vector store for RAG (background)
     if background_tasks is not None:
@@ -115,7 +124,21 @@ async def get_my_reports(current_user: dict = Depends(get_current_user), db: Ses
     """Get all reports uploaded by the current user."""
     user_id = uuid.UUID(current_user["sub"])
     reports = db.query(Report).filter(Report.user_id == user_id).order_by(desc(Report.uploaded_at)).all()
-    
+
+    updated = False
+    for report in reports:
+        extracted = report.extracted_fields or {}
+        if _summary_needs_regen(extracted.get("summary")) and report.raw_text:
+            ai_analysis = analyze_with_llm(report.raw_text)
+            summary = ai_analysis.get("summary")
+            if summary and summary not in {"AI analysis unavailable", "Failed to analyze with AI"}:
+                extracted.update(ai_analysis)
+                report.extracted_fields = extracted
+                updated = True
+
+    if updated:
+        db.commit()
+
     return {
         "reports": [
             {

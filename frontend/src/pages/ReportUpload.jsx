@@ -161,40 +161,28 @@ export default function ReportUpload() {
           </div>
         ) : (
           <div className="space-y-3">
-            {reports.map((report, i) => (
-              <div key={i} className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl hover:bg-teal-50 transition-colors">
-                <div className="w-10 h-10 rounded-lg bg-teal-100 flex items-center justify-center text-teal-600 text-lg">📋</div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-gray-700 truncate">{report.filename}</p>
-                    {report.extracted_fields?.recovery_status && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-600 border border-teal-100 uppercase">
-                        {report.extracted_fields.recovery_status}
-                      </span>
-                    )}
-                    {report.extracted_fields?.overall_signal && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-100 uppercase">
-                        {report.extracted_fields.overall_signal}
-                      </span>
-                    )}
+            {reports.map((report, i) => {
+              const classification = report.extracted_fields?.signal_classification
+              const dateLabel = report.uploaded_at ? new Date(report.uploaded_at).toLocaleDateString() : 'Unknown date'
+              const pagesLabel = report.page_count ? `${report.page_count} pages` : null
+              const metaLabel = pagesLabel ? `${dateLabel} · ${pagesLabel}` : dateLabel
+
+              return (
+                <div key={i} className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl hover:bg-teal-50 transition-colors">
+                  <div className="w-10 h-10 rounded-lg bg-teal-100 flex items-center justify-center text-teal-600 text-lg">📋</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-800 truncate">{report.filename}</p>
+                    <p className="text-xs text-gray-400 mt-1">{metaLabel}</p>
+                    <p className="text-xs text-gray-400 mt-1">Signal derived from report analysis</p>
                   </div>
-                  <p className="text-xs text-gray-400">
-                    {report.uploaded_at ? new Date(report.uploaded_at).toLocaleDateString() : 'Unknown date'}
-                    {report.page_count && ` · ${report.page_count} pages`}
-                  </p>
-                  {report.extracted_fields?.summary && (
-                    <p className="text-xs text-gray-500 mt-2 italic bg-white/50 p-2 rounded-lg border border-gray-100 whitespace-normal break-words leading-relaxed">
-                      "{report.extracted_fields.summary}"
-                    </p>
+                  {report.extracted_fields && Object.keys(report.extracted_fields).filter(k => k !== 'summary' && k !== 'recovery_status' && k !== 'key_metrics').length > 0 && (
+                    <span className="text-xs text-teal-600 bg-teal-50 px-2.5 py-1 rounded-full">
+                      {Object.keys(report.extracted_fields).filter(k => k !== 'summary' && k !== 'recovery_status' && k !== 'key_metrics').length} markers
+                    </span>
                   )}
                 </div>
-                {report.extracted_fields && Object.keys(report.extracted_fields).filter(k => k !== 'summary' && k !== 'recovery_status' && k !== 'key_metrics').length > 0 && (
-                  <span className="text-xs text-teal-600 bg-teal-50 px-2.5 py-1 rounded-full">
-                    {Object.keys(report.extracted_fields).filter(k => k !== 'summary' && k !== 'recovery_status' && k !== 'key_metrics').length} markers
-                  </span>
-                )}
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

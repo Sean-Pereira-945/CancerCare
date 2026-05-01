@@ -36,6 +36,48 @@ def extract_key_fields(text: str) -> Dict:
     return results
 
 
+def _build_fallback_summary(extracted: Dict) -> str:
+    parts = []
+    cancer_type = extracted.get("cancer_type")
+    stage = extracted.get("stage")
+    tumor_markers = extracted.get("tumor_markers")
+    treatment = extracted.get("treatment")
+    medications = extracted.get("medications")
+    hemoglobin = extracted.get("hemoglobin")
+    wbc = extracted.get("wbc")
+
+    if cancer_type:
+        parts.append(f"Diagnosis: {cancer_type.title()}.")
+    if stage:
+        parts.append(f"Stage {str(stage).upper()}.")
+    if tumor_markers:
+        parts.append(f"Tumor marker: {tumor_markers}.")
+    if treatment:
+        parts.append(f"Planned treatment: {treatment}.")
+    if medications:
+        parts.append(f"Medications: {medications}.")
+    if hemoglobin or wbc:
+        labs = []
+        if hemoglobin:
+            labs.append(f"Hgb {hemoglobin}")
+        if wbc:
+            labs.append(f"WBC {wbc}")
+        parts.append(f"Labs: {', '.join(labs)}.")
+
+    return " ".join(parts) if parts else "Clinical report uploaded. Key findings pending review."
+
+
+def _ensure_indicators(extracted: Dict) -> None:
+    recovery_status = extracted.get("recovery_status")
+    overall_signal = extracted.get("overall_signal")
+    placeholder_values = {"Unknown", "Processing", "AI analysis unavailable", "Failed to analyze with AI", ""}
+
+    if not recovery_status or recovery_status in placeholder_values:
+        extracted["recovery_status"] = "Pending review"
+    if not overall_signal or overall_signal in placeholder_values:
+        extracted["overall_signal"] = "Needs review"
+
+
 def analyze_with_llm(text: str) -> Dict:
     """Use LLM to summarize key findings and determine recovery status."""
     logger.info(f"Analyzing report text with LLM (length: {len(text)})")
@@ -51,11 +93,20 @@ def analyze_with_llm(text: str) -> Dict:
 
     prompt = f"""
     Analyze the following medical report text and provide:
-    1. A concise summary of key findings (2-3 sentences).
+    1. A concise, readable summary of key findings (1-2 full sentences, no fragments).
     2. A recovery status indicator (e.g., 'Positive signs', 'Stable', 'Concerning', or 'Requires discussion').
     3. A clear overall signal label: one of ["Good signs", "Mixed", "Concerning", "Unknown"].
-    4. Evidence from the report that supports the signal (3-6 short bullet items).
-    5. Table highlights if present (2-5 items). Include key marker/value pairs.
+    4. A strict classification label based on the report text: one of ["positive", "negative"].
+    5. Evidence from the report that supports the signal (3-6 short bullet items).
+    6. Table highlights if present (2-5 items). Include key marker/value pairs.
+
+    Rules for the summary:
+    - Use plain language and complete sentences.
+    - Keep it under 60 words.
+    - Avoid abbreviations unless explicitly in the report.
+    - Only include facts stated in the report text; do not invent details.
+    - Mention at least one concrete clinical detail (diagnosis, stage, marker, tumor size, treatment, or procedure).
+    - End with a sentence that states whether the overall signal is positive or concerning and why (1 short clause).
 
     Report Text:
     {text[:4000]}
@@ -65,6 +116,7 @@ def analyze_with_llm(text: str) -> Dict:
         "summary": "...",
         "recovery_status": "...",
         "overall_signal": "...",
+        "signal_classification": "positive | negative",
         "signal_evidence": ["..."],
         "table_highlights": ["..."],
         "key_metrics": "..."
@@ -73,11 +125,37 @@ def analyze_with_llm(text: str) -> Dict:
     try:
         response = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a clinical summarization assistant. Follow the rules exactly and return JSON only."
+                },
+                {"role": "user", "content": prompt}
+            ],
             response_format={"type": "json_object"}
         )
         import json
         result = json.loads(response.choices[0].message.content)
+        if isinstance(result, dict):
+            summary = result.get("summary")
+            if summary:
+                normalized = _normalize_summary(summary)
+                if not _summary_has_report_overlap(normalized, text):
+                    raise ValueError("AI summary failed overlap check")
+                refined = _rephrase_summary_with_groq(normalized, text)
+                if refined and _summary_has_report_overlap(refined, text):
+                    result["summary"] = _normalize_summary(refined)
+                else:
+                    result["summary"] = normalized
+            if result.get("summary"):
+                result["summary"] = _ensure_summary_signal(
+                    result["summary"],
+                    result.get("recovery_status"),
+                    result.get("overall_signal")
+                )
+            result["signal_classification"] = _normalize_signal_classification(
+                result.get("signal_classification")
+            )
         logger.info(f"AI Analysis successful: {result.get('recovery_status')}")
         return result
     except Exception as e:
@@ -89,6 +167,101 @@ def analyze_with_llm(text: str) -> Dict:
             "signal_evidence": ["AI analysis failed"],
             "table_highlights": []
         }
+
+
+def _normalize_summary(summary: str) -> str:
+    cleaned = re.sub(r"\s+", " ", summary).strip()
+    cleaned = cleaned.replace("..", ".").replace(" ,", ",")
+    if cleaned and not cleaned.endswith("."):
+        cleaned = f"{cleaned}."
+    return cleaned[:420]
+
+
+def _ensure_summary_signal(summary: str, recovery_status: str | None, overall_signal: str | None) -> str:
+    summary_lower = summary.lower()
+    signal_terms = ["positive", "concerning", "stable", "mixed", "favorable", "unfavorable"]
+    if any(term in summary_lower for term in signal_terms):
+        return summary
+
+    signal = (recovery_status or overall_signal or "Unknown").strip()
+    if signal.lower() in {"unknown", "processing", "pending review", "needs review"}:
+        return summary
+
+    suffix = f" Overall, this suggests {signal.lower()}."
+    return _normalize_summary(f"{summary} {suffix}")
+
+
+def _normalize_signal_classification(value: str | None) -> str:
+    if not value:
+        return "negative"
+    normalized = value.strip().lower()
+    if normalized in {"positive", "negative"}:
+        return normalized
+    if "positive" in normalized or "good" in normalized:
+        return "positive"
+    if "negative" in normalized or "concern" in normalized:
+        return "negative"
+    return "negative"
+
+
+def _summary_has_report_overlap(summary: str, text: str) -> bool:
+    summary_lower = summary.lower()
+    tokens = re.findall(r"[a-zA-Z]{4,}", text.lower())
+    if not tokens:
+        return False
+    stopwords = {
+        "with", "from", "that", "this", "were", "have", "patient", "patients", "report",
+        "which", "will", "been", "into", "your", "also", "more", "than", "they", "them",
+        "clinical", "medical", "summary", "findings", "results", "treatment", "therapy"
+    }
+    freq = {}
+    for token in tokens:
+        if token in stopwords:
+            continue
+        freq[token] = freq.get(token, 0) + 1
+    if not freq:
+        return False
+    top_terms = sorted(freq, key=freq.get, reverse=True)[:6]
+    return any(term in summary_lower for term in top_terms)
+
+
+def _rephrase_summary_with_groq(summary: str, report_text: str) -> str:
+    if not groq_client:
+        return summary
+
+    prompt = f"""
+    Rewrite the summary below to sound natural and polished, without changing meaning.
+    Rules:
+    - Keep it 1-2 sentences under 60 words.
+    - Fix spelling/grammar.
+    - Do not add new facts.
+    - Keep clinical details mentioned in the report text.
+
+    Report Text (for grounding):
+    {report_text[:2000]}
+
+    Original Summary:
+    {summary}
+
+    Return only the revised summary text.
+    """
+
+    try:
+        response = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You rewrite clinical summaries. Return only the revised summary text."
+                },
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.2
+        )
+        revised = response.choices[0].message.content.strip()
+        return revised
+    except Exception:
+        return summary
 
 
 def _clean_cell(value: Optional[str]) -> str:

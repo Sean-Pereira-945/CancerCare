@@ -80,7 +80,7 @@ if "!REBUILD_VENV!"=="1" (
 )
 
 echo [PROGRESS] Checking backend dependencies...
-"%VENV_PY%" -c "import fastapi, uvicorn, sqlalchemy" >nul 2>&1
+"%VENV_PY%" -c "import fastapi, uvicorn, sqlalchemy, pdfplumber, pymongo" >nul 2>&1
 if errorlevel 1 (
     echo [INFO] Installing backend dependencies...
     "%VENV_PY%" -m pip install --upgrade pip
@@ -149,6 +149,22 @@ set "PYTHON_EXE="
 
 where py >nul 2>&1
 if not errorlevel 1 (
+    py -3.11 -c "import sys" >nul 2>&1
+    if not errorlevel 1 (
+        for /f "usebackq delims=" %%P in (`py -3.11 -c "import sys; print(sys.executable)"`) do (
+            set "PYTHON_EXE=%%P"
+        )
+        goto :eof
+    )
+
+    py -3.12 -c "import sys" >nul 2>&1
+    if not errorlevel 1 (
+        for /f "usebackq delims=" %%P in (`py -3.12 -c "import sys; print(sys.executable)"`) do (
+            set "PYTHON_EXE=%%P"
+        )
+        goto :eof
+    )
+
     py -3 -c "import sys" >nul 2>&1
     if not errorlevel 1 (
         for /f "usebackq delims=" %%P in (`py -3 -c "import sys; print(sys.executable)"`) do (

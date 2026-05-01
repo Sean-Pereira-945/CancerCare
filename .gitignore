@@ -54,3 +54,6 @@ Thumbs.db
 *.log
 *.tmp
 *.bak
+
+# Report PDFs
+*.pdf
