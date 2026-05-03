@@ -1,0 +1,276 @@
+# CancerCare - Quick Command Guide (Windows PowerShell)
+
+## 0) One-time setup
+```powershell
+cd C:\Users\SEAN\OneDrive\Desktop\CancerCare
+
+# Backend setup
+cd backend
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+
+# Frontend setup
+cd ..\frontend
+npm install
+
+# Back to project root
+cd ..
+```
+
+## 1) Start full project (simple option)
+```powershell
+cd C:\Users\SEAN\OneDrive\Desktop\CancerCare
+.\run_project.bat
+```
+
+## 2) Start project manually (recommended for development)
+Open two terminals.
+
+Terminal A (backend):
+```powershell
+cd C:\Users\SEAN\OneDrive\Desktop\CancerCare\backend
+.\venv\Scripts\Activate.ps1
+uvicorn app.main:app --reload --port 8000 --env-file ..\.env
+```
+
+Terminal B (frontend):
+```powershell
+cd C:\Users\SEAN\OneDrive\Desktop\CancerCare\frontend
+npm run dev
+```
+
+Useful URLs:
+- Frontend: http://localhost:5173
+- Backend docs: http://localhost:8000/docs
+
+---
+
+## 3) Research workflow (end-to-end)
+Use backend venv for all Python research scripts.
+
+```powershell
+cd C:\Users\SEAN\OneDrive\Desktop\CancerCare\backend
+.\venv\Scripts\Activate.ps1
+```
+
+### Step 1: (Optional) Ingest PDF reports for personalized RAG
+Drop PDFs into `research\test_reports\` first, then run:
+```powershell
+cd ..\research
+python ingest_reports.py
+```
+
+### Step 2: Get auth token for experiment runner
+Make sure backend is running, then either register or login.
+
+Register (first time):
+```powershell
+$registerBody = @{
+  name = "Research User"
+  email = "research.user@example.com"
+  password = "StrongPassword123!"
+  cancer_type = "general"
+  role = "patient"
+} | ConvertTo-Json
+
+$reg = Invoke-RestMethod -Method POST -Uri "http://127.0.0.1:8000/api/auth/register" -ContentType "application/json" -Body $registerBody
+$TOKEN = $reg.access_token
+$TOKEN
+```
+
+Login (if account already exists):
+```powershell
+$loginBody = @{
+  email = "research.user@example.com"
+  password = "StrongPassword123!"
+} | ConvertTo-Json
+
+$login = Invoke-RestMethod -Method POST -Uri "http://127.0.0.1:8000/api/auth/login" -ContentType "application/json" -Body $loginBody
+$TOKEN = $login.access_token
+$TOKEN
+```
+
+### Step 3: Run ablation experiments (writes CSV + raw JSON)
+```powershell
+cd ..\backend
+python experiment_runner.py --token $TOKEN --api-base "http://127.0.0.1:8000" --dataset "..\research\datasets\eval_qa.jsonl" --csv "..\research\experiment_matrix.csv"
+```
+
+### Step 4: Statistical analysis from experiment raw output
+```powershell
+cd ..\research
+python statistical_analysis.py
+```
+
+### Step 5: Generate plots from experiment matrix
+```powershell
+python generate_plots.py
+```
+
+### Step 6: Check symptom logs in DB (optional utility)
+```powershell
+python check_db_logs.py
+```
+
+---
+
+## 4) Useful extra commands
+Backend tests:
+```powershell
+cd C:\Users\SEAN\OneDrive\Desktop\CancerCare\backend
+.\venv\Scripts\Activate.ps1
+pytest
+```
+
+Frontend lint:
+```powershell
+cd C:\Users\SEAN\OneDrive\Desktop\CancerCare\frontend
+npm run lint
+```
+
+---
+
+## 5) Tiny-subset research mode (Groq free-tier friendly)
+This mode creates a small dataset from the first N lines of `eval_qa.jsonl` and runs experiments on it.
+
+### Step A: Create tiny dataset (example: 20 items)
+```powershell
+cd C:\Users\SEAN\OneDrive\Desktop\CancerCare
+Get-Content .\research\datasets\eval_qa.jsonl -TotalCount 20 | Set-Content .\research\datasets\eval_qa.tiny20.jsonl
+```
+
+For even smaller runs:
+```powershell
+# 10 items
+Get-Content .\research\datasets\eval_qa.jsonl -TotalCount 10 | Set-Content .\research\datasets\eval_qa.tiny10.jsonl
+
+# 5 items (smoke test)
+Get-Content .\research\datasets\eval_qa.jsonl -TotalCount 5 | Set-Content .\research\datasets\eval_qa.tiny5.jsonl
+```
+
+### Step B: Copy matrix for tiny runs (to avoid overwriting main file)
+```powershell
+Copy-Item .\research\experiment_matrix.csv .\research\experiment_matrix.tiny.csv
+```
+
+### Step C: Run experiments on tiny dataset
+```powershell
+cd C:\Users\SEAN\OneDrive\Desktop\CancerCare\backend
+.\venv\Scripts\Activate.ps1
+python experiment_runner.py --token $TOKEN --api-base "http://127.0.0.1:8000" --dataset "..\research\datasets\eval_qa.tiny20.jsonl" --csv "..\research\experiment_matrix.tiny.csv"
+```
+
+### Step D: Preserve tiny raw output before next run
+`experiment_runner.py` always writes to `research\experiment_raw_data.json`, so save a copy:
+```powershell
+Copy-Item ..\research\experiment_raw_data.json ..\research\experiment_raw_data.tiny20.json
+```
+
+### Step E: Statistical analysis + plots for tiny run
+```powershell
+cd ..\research
+Copy-Item .\experiment_raw_data.tiny20.json .\experiment_raw_data.json -Force
+python statistical_analysis.py
+python generate_plots.py
+```
+
+Note:
+- `generate_plots.py` reads `experiment_matrix.csv` by default. For tiny plotting, temporarily replace it:
+```powershell
+Copy-Item .\experiment_matrix.tiny.csv .\experiment_matrix.csv -Force
+python generate_plots.py
+```
+
+---
+
+## 6) Publishable-run protocol (new robust pipeline)
+The runner now supports retries, resumable raw outputs, and controlled subsets.
+
+### 6.1 Pilot run (paper dry-run, 50 items)
+```powershell
+cd C:\Users\SEAN\OneDrive\Desktop\CancerCare\backend
+.\venv\Scripts\Activate.ps1
+python experiment_runner.py `
+  --token $TOKEN `
+  --api-base "http://127.0.0.1:8000" `
+  --dataset "..\research\datasets\eval_qa.jsonl" `
+  --csv "..\research\experiment_matrix.pilot.csv" `
+  --raw-out "..\research\experiment_raw_data.pilot.json" `
+  --quality-report-out "..\research\experiment_quality_report.pilot.json" `
+  --failure-log-out "..\research\experiment_failures.pilot.jsonl" `
+  --judge-model "llama-3.3-70b-versatile" `
+  --shuffle `
+  --seed 42 `
+  --max-items 50 `
+  --request-retries 5 `
+  --judge-retries 5 `
+  --retry-delay-seconds 3 `
+  --sleep-seconds 1.5 `
+  --min-coverage-ok 0.90
+```
+
+### 6.2 Resume same run after quota reset
+Use the same command again (same `--raw-out`), already processed items are skipped.
+
+### 6.3 Full run (for paper tables)
+```powershell
+python experiment_runner.py `
+  --token $TOKEN `
+  --api-base "http://127.0.0.1:8000" `
+  --dataset "..\research\datasets\eval_qa.jsonl" `
+  --csv "..\research\experiment_matrix.paper.csv" `
+  --raw-out "..\research\experiment_raw_data.paper.json" `
+  --quality-report-out "..\research\experiment_quality_report.paper.json" `
+  --failure-log-out "..\research\experiment_failures.paper.jsonl" `
+  --judge-model "llama-3.3-70b-versatile" `
+  --request-retries 5 `
+  --judge-retries 5 `
+  --retry-delay-seconds 3 `
+  --sleep-seconds 1.5 `
+  --min-coverage-ok 0.95
+```
+
+The run now also exports:
+- Quality report JSON (coverage, status counts, failure reasons per variant)
+- Failure log JSONL (one failed item per line for appendix/error analysis)
+
+### 6.4 Statistical analysis (explicit files/variants)
+```powershell
+cd ..\research
+..\backend\venv\Scripts\python.exe statistical_analysis.py `
+  --raw-data "experiment_raw_data.paper.json" `
+  --base-variant "A1" `
+  --compare-variant "A5" `
+  --bootstrap-iterations 20000 `
+  --seed 42
+```
+
+### 6.5 Plot generation (explicit input/output)
+```powershell
+..\backend\venv\Scripts\python.exe generate_plots.py `
+  --csv "experiment_matrix.paper.csv" `
+  --output-dir "figures_paper"
+```
+
+### 6.6 Reliability summary (appendix)
+```powershell
+..\backend\venv\Scripts\python.exe summarize_quality_report.py `
+  --input ".\experiment_quality_report.paper.json" `
+  --format markdown `
+  --output ".\quality_summary.paper.md"
+
+..\backend\venv\Scripts\python.exe summarize_quality_report.py `
+  --input ".\experiment_quality_report.paper.json" `
+  --format csv `
+  --output ".\quality_summary.paper.csv"
+```
+
+### 6.7 Slice analysis by question type
+```powershell
+..\backend\venv\Scripts\python.exe slice_analysis.py `
+  --raw-data ".\experiment_raw_data.paper.json" `
+  --dataset ".\datasets\eval_qa.jsonl" `
+  --variant "A5" `
+  --output ".\slice_analysis.paper.A5.json"
+```

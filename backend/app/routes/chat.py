@@ -5,9 +5,8 @@ from groq import Groq
 from app.config import get_settings
 from app.auth.router import get_current_user
 from app.database import get_db
-from app.ml.rag_pipeline import load_vectorstore, get_embeddings
+from app.ml.rag_pipeline import load_vectorstore, get_embeddings, VECTOR_STORE_PATH
 from app.models.db import Report
-from pathlib import Path
 from langchain_community.vectorstores import FAISS
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
@@ -74,6 +73,13 @@ def _compute_retrieval_confidence(user_scores: List[float], global_scores: List[
     return round(min(1.0, base), 4)
 
 
+def _report_context_confidence(report_rows_used: int) -> float:
+    """Treat direct report fallback context as evidence for gating purposes."""
+    if report_rows_used <= 0:
+        return 0.0
+    return min(0.35, 0.2 + (0.05 * min(report_rows_used, 3)))
+
+
 def _uncertainty_response(confidence: float) -> str:
     """Safe low-confidence response that avoids speculative medical guidance."""
     return (
@@ -123,12 +129,23 @@ def _build_report_fallback_context(db: Session, user_id: str) -> tuple[list[str]
         extracted = report.extracted_fields or {}
         summary = extracted.get("summary")
         recovery_status = extracted.get("recovery_status")
+        overall_signal = extracted.get("overall_signal")
+        signal_evidence = extracted.get("signal_evidence")
+        table_excerpt = extracted.get("table_excerpt")
 
         block = [f"Report filename: {report.filename}"]
         if recovery_status:
             block.append(f"Recovery status: {recovery_status}")
+        if overall_signal:
+            block.append(f"Overall signal: {overall_signal}")
         if summary:
             block.append(f"Clinical summary: {summary}")
+        if signal_evidence:
+            if isinstance(signal_evidence, list):
+                block.append("Signal evidence:")
+                block.extend([f"- {item}" for item in signal_evidence[:6] if item])
+            else:
+                block.append(f"Signal evidence: {signal_evidence}")
 
         structured_fields = [
             f"{key.replace('_', ' ')}: {value}"
@@ -142,6 +159,9 @@ def _build_report_fallback_context(db: Session, user_id: str) -> tuple[list[str]
         if report.raw_text:
             block.append("Report text excerpt:")
             block.append(report.raw_text[:2000])
+        if table_excerpt:
+            block.append("Table excerpt:")
+            block.append(str(table_excerpt)[:1500])
 
         context_parts.append("\n".join(block))
 
@@ -176,7 +196,7 @@ async def chat(
 
     # Also search user-specific report if it exists
     user_docs = []
-    user_store_path = Path(f"data/vector_store/user_{user_id}")
+    user_store_path = VECTOR_STORE_PATH / f"user_{user_id}"
     user_scores = []
     user_pairs = []
     report_fallback_contexts = []
@@ -207,13 +227,16 @@ async def chat(
         context_parts.extend([d.page_content for d in global_docs])
 
     context = "\n\n".join(context_parts) if context_parts else "No specific context available."
-    retrieval_confidence = _compute_retrieval_confidence(user_scores, global_scores)
+    retrieval_confidence = max(
+        _compute_retrieval_confidence(user_scores, global_scores),
+        _report_context_confidence(report_rows_used),
+    )
 
     if exp_config.use_uncertainty_gating:
         if retrieval_confidence < LOW_CONFIDENCE_THRESHOLD:
             out = {
                 "reply": _uncertainty_response(retrieval_confidence),
-                "sources_used": len(user_docs) + len(global_docs),
+                "sources_used": len(user_docs) + len(global_docs) + len(report_fallback_contexts),
                 "confidence": retrieval_confidence,
                 "response_mode": "abstain",
                 "medical_disclaimer": "CancerCare AI does not replace professional medical advice."
@@ -241,7 +264,7 @@ async def chat(
     if not groq_client:
         out = {
             "reply": _fallback_reply(request.message, context),
-            "sources_used": len(user_docs) + len(global_docs),
+            "sources_used": len(user_docs) + len(global_docs) + len(report_fallback_contexts),
             "confidence": retrieval_confidence,
             "response_mode": "fallback",
             "medical_disclaimer": "CancerCare AI does not replace professional medical advice."
@@ -274,7 +297,7 @@ async def chat(
         
     out = {
         "reply": answer,
-        "sources_used": len(user_docs) + len(global_docs),
+        "sources_used": len(user_docs) + len(global_docs) + len(report_fallback_contexts),
         "confidence": retrieval_confidence,
         "response_mode": response_mode,
         "context": context,

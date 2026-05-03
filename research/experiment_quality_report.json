@@ -1,0 +1,101 @@
+{
+  "generated_at_utc": "2026-04-27T14:03:15.729014+00:00",
+  "run_config": {
+    "api_base": "http://127.0.0.1:8001",
+    "dataset": "..\\research\\datasets\\eval_qa.jsonl",
+    "csv": "../research/experiment_matrix.csv",
+    "raw_out": "../research/experiment_raw_data.json",
+    "seed": 42,
+    "shuffle": false,
+    "max_items": 10,
+    "sleep_seconds": 1.0,
+    "request_timeout": 45,
+    "request_retries": 3,
+    "judge_retries": 3,
+    "retry_delay_seconds": 2.0,
+    "min_coverage_ok": 0.0,
+    "judge_model": "llama-3.1-8b-instant"
+  },
+  "overall": {
+    "dataset_items_total": 10,
+    "variants_count": 6,
+    "status_counts": {
+      "ok": 60
+    },
+    "failure_reason_counts": {}
+  },
+  "per_variant": {
+    "A0": {
+      "dataset_items_total": 10,
+      "items_with_record": 10,
+      "completed_ok": 10,
+      "chat_failed": 0,
+      "judge_failed": 0,
+      "coverage_ok_ratio": 1.0,
+      "status_counts": {
+        "ok": 10
+      },
+      "failure_reason_counts": {}
+    },
+    "A1": {
+      "dataset_items_total": 10,
+      "items_with_record": 10,
+      "completed_ok": 10,
+      "chat_failed": 0,
+      "judge_failed": 0,
+      "coverage_ok_ratio": 1.0,
+      "status_counts": {
+        "ok": 10
+      },
+      "failure_reason_counts": {}
+    },
+    "A2": {
+      "dataset_items_total": 10,
+      "items_with_record": 10,
+      "completed_ok": 10,
+      "chat_failed": 0,
+      "judge_failed": 0,
+      "coverage_ok_ratio": 1.0,
+      "status_counts": {
+        "ok": 10
+      },
+      "failure_reason_counts": {}
+    },
+    "A3": {
+      "dataset_items_total": 10,
+      "items_with_record": 10,
+      "completed_ok": 10,
+      "chat_failed": 0,
+      "judge_failed": 0,
+      "coverage_ok_ratio": 1.0,
+      "status_counts": {
+        "ok": 10
+      },
+      "failure_reason_counts": {}
+    },
+    "A4": {
+      "dataset_items_total": 10,
+      "items_with_record": 10,
+      "completed_ok": 10,
+      "chat_failed": 0,
+      "judge_failed": 0,
+      "coverage_ok_ratio": 1.0,
+      "status_counts": {
+        "ok": 10
+      },
+      "failure_reason_counts": {}
+    },
+    "A5": {
+      "dataset_items_total": 10,
+      "items_with_record": 10,
+      "completed_ok": 10,
+      "chat_failed": 0,
+      "judge_failed": 0,
+      "coverage_ok_ratio": 1.0,
+      "status_counts": {
+        "ok": 10
+      },
+      "failure_reason_counts": {}
+    }
+  }
+}

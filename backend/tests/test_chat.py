@@ -34,3 +34,26 @@ def test_chat_returns_reply_for_authenticated_user_without_llm_key():
         assert "sources_used" in body
     finally:
         app.dependency_overrides.clear()
+
+
+def test_chat_uses_report_fallback_context_for_patient_reports(monkeypatch):
+    import app.routes.chat as chat_routes
+
+    monkeypatch.setattr(chat_routes, "load_vectorstore", lambda: (_ for _ in ()).throw(RuntimeError("no global store")))
+    monkeypatch.setattr(
+        chat_routes,
+        "_build_report_fallback_context",
+        lambda _db, _user_id: (["Report filename: scan.pdf\nClinical summary: tumor markers improved."], 1),
+    )
+
+    app.dependency_overrides[get_current_user] = lambda: {"sub": "test-user", "role": "patient"}
+    try:
+        response = client.post("/api/chat/message", json={"message": "what does my report say?"})
+        assert response.status_code == 200
+        body = response.json()
+        assert body["response_mode"] in {"cautious", "normal"}
+        assert body["confidence"] >= 0.2
+        assert "tumor markers improved" in body["context"]
+        assert body["sources_used"] >= 1
+    finally:
+        app.dependency_overrides.clear()

@@ -105,10 +105,17 @@ start "CancerCare Backend" /D "%BACKEND_DIR%" cmd /c ""%VENV_PY%" -m uvicorn app
 
 echo [PROGRESS] Waiting for backend health check...
 set "BACKEND_READY=0"
-for /l %%I in (1,1,25) do (
-    powershell -NoProfile -Command "try { $r = Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8000/health -TimeoutSec 2; if ($r.StatusCode -ge 200) { exit 0 } else { exit 1 } } catch { exit 1 }" >nul 2>&1
+set "BACKEND_DEGRADED=0"
+for /l %%I in (1,1,60) do (
+    powershell -NoProfile -Command "try { $r = Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8000/health -TimeoutSec 3; if ($r.StatusCode -ge 200 -and $r.StatusCode -lt 400) { exit 0 } else { exit 1 } } catch { exit 1 }" >nul 2>&1
     if not errorlevel 1 (
         set "BACKEND_READY=1"
+        goto :backend_ready
+    )
+    powershell -NoProfile -Command "try { $r = Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8000/ -TimeoutSec 3; if ($r.StatusCode -ge 200 -and $r.StatusCode -lt 400) { exit 0 } else { exit 1 } } catch { exit 1 }" >nul 2>&1
+    if not errorlevel 1 (
+        set "BACKEND_READY=1"
+        set "BACKEND_DEGRADED=1"
         goto :backend_ready
     )
     timeout /t 1 /nobreak >nul
@@ -128,6 +135,10 @@ if "!BACKEND_READY!"=="0" (
     echo [HINT] This is the reason the login screen shows ERR_CONNECTION_REFUSED.
     pause
     exit /b 1
+)
+
+if "!BACKEND_DEGRADED!"=="1" (
+    echo [WARN] Backend is up, but /health did not respond yet. Check database connectivity if this persists.
 )
 
 echo.

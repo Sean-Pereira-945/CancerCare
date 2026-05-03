@@ -139,7 +139,7 @@ The quality report also tracks operational metrics such as:
 ### 1) Backend
 
 ```bash
-cd backend
+
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
@@ -156,7 +156,7 @@ npm run dev
 
 ### 3) Optional one-click launcher (Windows)
 
-```bat
+```batcd backend
 run_project.bat
 ```
 
@@ -199,43 +199,7 @@ npm run lint
 
 ## Architecture Diagram
 
-```mermaid
-flowchart LR
-    U["Patient / Caregiver"] --> FE["Frontend\nReact + Vite"]
-    FE --> API["Backend API\nFastAPI"]
-
-    API --> AUTH["Auth Layer\nJWT"]
-    API --> CHAT["Chat Route"]
-    API --> REPORTS["Reports Route"]
-    API --> DIET["Diet Route"]
-    API --> SYM["Symptoms Route"]
-    API --> MEDS["Medications Route"]
-    API --> CARE["Caregiver Route"]
-    API --> REFS["References Route"]
-
-    AUTH --> SQL["SQL Database\nNeon/Postgres or SQLite fallback"]
-    REPORTS --> SQL
-    DIET --> SQL
-    SYM --> SQL
-    MEDS --> SQL
-    CARE --> SQL
-    CHAT --> SQL
-
-    REPORTS --> PARSER["Report Parser\nPyMuPDF + regex + LLM summary"]
-    PARSER --> RISK["Risk Model\nPickled ML model"]
-    PARSER --> USERFILES["User Report Files\n[data/user_reports/]"]
-    PARSER --> USERVS["User Vector Store\nFAISS per user"]
-
-    CHAT --> RAG["RAG Pipeline"]
-    RAG --> GLOBALVS["Global Vector Store\nFAISS knowledge base"]
-    RAG --> USERVS
-    GLOBALVS --> KB["Knowledge Base PDFs"]
-    CHAT --> DBFALLBACK["Latest report fallback\nfrom SQL rows"]
-
-    CHAT --> GROQ["Groq LLM\nllama-3.3-70b-versatile"]
-    DIET --> GROQ
-    PARSER --> GROQ
-```
+![CancerCare AI architecture diagram](utils/images/Gemini_Generated_Image_rthbumrthbumrthb.png)
 
 ## Data Flow Diagram
 

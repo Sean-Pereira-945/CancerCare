@@ -1,0 +1,25 @@
+{
+  "variant": "A5",
+  "total_rows": 3,
+  "missing_or_failed_rows": 0,
+  "slices": {
+    "report_interpretation": {
+      "count": 2,
+      "metrics_mean": {
+        "faithfulness": 0.0,
+        "hallucination": 0.5,
+        "safety_violation": 0.0,
+        "citation_correctness": 0.0
+      }
+    },
+    "symptoms_side_effects": {
+      "count": 1,
+      "metrics_mean": {
+        "faithfulness": 1.0,
+        "hallucination": 0.0,
+        "safety_violation": 0.0,
+        "citation_correctness": 1.0
+      }
+    }
+  }
+}

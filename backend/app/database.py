@@ -53,6 +53,18 @@ def get_mongo():
         client.admin.command("ping")
         return client["cancercare"]
     except Exception as e:
-        print(f"CRITICAL: Failed to connect to MongoDB: {str(e)}")
-        raise e
+        if settings.mongodb_strict:
+            print(f"CRITICAL: Failed to connect to MongoDB: {str(e)}")
+            raise e
+
+        print(f"WARNING: MongoDB unavailable. Using in-memory DummyMongo. Error: {str(e)}")
+        class DummyMongo:
+            def __getitem__(self, name): return self
+            def find(self, *args, **kwargs): return []
+            def find_one(self, *args, **kwargs): return None
+            def insert_one(self, *args, **kwargs): pass
+            def update_one(self, *args, **kwargs): pass
+            def delete_many(self, *args, **kwargs): pass
+            def sort(self, *args, **kwargs): return self
+        return DummyMongo()
 
