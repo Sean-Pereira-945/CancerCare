@@ -2,6 +2,8 @@
 
 CancerCare AI is a full-stack oncology support platform with a React frontend, a FastAPI backend, retrieval-augmented question answering over trusted medical references and uploaded patient reports, and a separate research workflow for ablation studies and LLM-as-a-judge evaluation.
 
+#Demo link: https://drive.google.com/file/d/1jqKOvOO_0Ma9Yy4_fxriUeKHXfLcA7wu/view?usp=drive_link
+
 ## Core Features
 
 - RAG-powered chatbot grounded in a shared oncology knowledge base and user-uploaded reports
